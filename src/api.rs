@@ -357,7 +357,7 @@ pub fn fetch_device_stats(sid: &str, ain: &str) -> Result<Vec<DeviceStats>> {
     );
     process_raw(stats.energy, DeviceStatsKind::Energy, 1.0, &mut result);
     process_raw(stats.power, DeviceStatsKind::Power, 1.0, &mut result);
-    process_raw(stats.voltage, DeviceStatsKind::Voltage, 1.0, &mut result);
+    process_raw(stats.voltage, DeviceStatsKind::Voltage, 0.001, &mut result);
 
     Ok(result)
 }
@@ -396,7 +396,7 @@ mod tests {
 </SessionInfo>
 "##;
 
-        let info = super::parse_session_info(xml);
+        let info = super::parse_session_info(xml).unwrap();
         assert_eq!(info.block_time, 0);
         assert_eq!(info.challenge, "63233c3d");
         assert_eq!(info.sid, "0000000000000000");

@@ -130,7 +130,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fritz"
+name = "fritz-homeautomation"
 version = "0.1.0"
 dependencies = [
  "dotenv",

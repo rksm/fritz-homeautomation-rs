@@ -1,5 +1,5 @@
 [package]
-name = "fritz"
+name = "fritz-homeautomation"
 version = "0.1.0"
 authors = ["Robert Krahn <robert.krahn@gmail.com>"]
 edition = "2018"
