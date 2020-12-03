@@ -56,9 +56,6 @@ fn main() {
     let password = matches.value_of("password").unwrap();
     let ain = matches.value_of("ain").unwrap();
 
-    println!("{:#?}", user);
-    println!("{:#?}", password);
-
     let sid = match api::get_sid(user, password) {
         Err(fritz_homeautomation::error::MyError::LoginError()) => {
             eprintln!("cannot login to fritz");

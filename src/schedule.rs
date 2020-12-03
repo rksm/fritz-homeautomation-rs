@@ -102,7 +102,7 @@ impl ScheduleWatcher {
     }
 }
 
-pub fn start_processing_schedule<P:AsRef<Path>>(
+pub fn start_processing_schedule<P: AsRef<Path>>(
     schedule_file: P,
     on_action: impl Fn(Action, DateTime<Local>),
 ) -> Result<()> {
@@ -121,7 +121,9 @@ pub fn start_processing_schedule<P:AsRef<Path>>(
         let schedule = read_schedule(&schedule_file)?;
 
         if schedule.is_empty() {
-            break;
+            println!("schedule is empty, waiting for file changes");
+            watcher.rx_file_change.recv().unwrap();
+            continue;
         }
 
         println!("Start schedule...");
@@ -141,6 +143,4 @@ pub fn start_processing_schedule<P:AsRef<Path>>(
             }
         }
     }
-
-    Ok(())
 }
