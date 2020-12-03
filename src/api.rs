@@ -196,7 +196,6 @@ pub fn get_sid(user: &str, password: &str) -> Result<String> {
         return Err(crate::error::MyError::LoginError());
     }
 
-    println!("{:#?}", info);
     Ok(info.sid)
 }
 

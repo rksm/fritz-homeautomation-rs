@@ -29,3 +29,10 @@ impl std::fmt::Display for MyError {
 }
 
 pub type Result<T> = std::result::Result<T, MyError>;
+
+#[macro_export]
+macro_rules! my_error {
+    ( $err:ident ) => {
+        $crate::error::MyError::Other(Box::new($err))
+    };
+}
