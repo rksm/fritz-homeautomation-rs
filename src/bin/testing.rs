@@ -18,23 +18,12 @@ fn main() -> Result<()> {
     let ain = "11657 0272633";
     let file = "/Users/robert/projects/rust/fritz-homeautomation/data/schedule.txt";
 
-    schedule::start_processing_schedule(file, move |action, time| {
-        println!(
-            "running action {:?} at {}",
-            action,
-            time.format("%Y-%m-%d %H:%M:%S %Z")
-        );
+    let dev = devices.into_iter().find_map(|dev| match dev {
+        api::AVMDevice::FritzDect2XX(dev) if dev.identifier == ain => Some(dev),
+        _ => None,
+    });
 
-        use schedule::Action::*;
-        let result = match action {
-            TurnOn => Some(api::turn_on(&sid, ain)),
-            TurnOff => Some(api::turn_off(&sid, ain)),
-            Unknown => None,
-        };
-        if let Some(Err(err)) = result {
-            eprintln!("action {:?} errored: {}", action, err);
-        }
-    })?;
+    println!("{:#?}", dev);
 
     Ok(())
 }

@@ -4,9 +4,9 @@ use crossbeam_channel::{bounded, select, unbounded, Receiver};
 use lazy_static::lazy_static;
 use notify::Watcher;
 use regex::Regex;
-use std::{fs, path::Path, time::Duration};
+use std::{fs, path::Path, path::PathBuf, time::Duration};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     TurnOn,
     TurnOff,
@@ -23,21 +23,26 @@ impl From<&str> for Action {
     }
 }
 
-fn read_schedule<P: AsRef<Path>>(schedule_file: P) -> Result<Vec<(DateTime<Local>, Action)>> {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r"(.*) (:?on|off)").unwrap();
-    }
+#[derive(Debug)]
+pub struct Schedule {
+    pub actions: Vec<(DateTime<Local>, Action)>,
+}
 
-    let now = chrono::Local::now();
+impl Schedule {
+    pub fn from_file<P: AsRef<Path>>(schedule_file: P) -> Result<Self> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"(.*) (:?on|off)").unwrap();
+        }
 
-    let schedule = fs::read_to_string(schedule_file).map_err(|err| my_error!(err))?;
+        let schedule_lines = fs::read_to_string(schedule_file).map_err(|err| my_error!(err))?;
+        let mut schedule = Schedule {
+            actions: Vec::new(),
+        };
 
-    let mut instructions: Vec<_> = schedule
-        .split('\n')
-        .filter_map(|ea| {
-            let captures = RE.captures(ea);
+        for line in schedule_lines.split('\n') {
+            let captures = RE.captures(line);
             let (ts, action) = match captures {
-                None => return None,
+                None => continue,
                 Some(captures) => {
                     let ts = captures.get(1).unwrap();
                     let action = captures.get(2).unwrap();
@@ -48,27 +53,36 @@ fn read_schedule<P: AsRef<Path>>(schedule_file: P) -> Result<Vec<(DateTime<Local
             let action = action.as_str().into();
 
             let date_time = match NaiveDateTime::parse_from_str(ts.as_str(), "%Y-%m-%d %H:%M:%S") {
-                Err(_) => return None,
+                Err(_) => {
+                    eprintln!("Cannot read date/time at line {:?}", line);
+                    continue;
+                }
                 Ok(date_time) => Local.from_local_datetime(&date_time).unwrap(),
             };
 
-            if now > date_time {
-                println!("Skipping past time {}", date_time);
-                return None;
-            }
+            schedule.actions.push((date_time, action));
+        }
 
-            Some((date_time, action))
-        })
-        .collect();
+        schedule.actions.sort_by(|(a, _), (b, _)| a.cmp(&b));
 
-    instructions.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        Ok(schedule)
+    }
 
-    Ok(instructions)
+    pub fn next_action(&self, at: DateTime<Local>) -> Option<&(DateTime<Local>, Action)> {
+        self.actions.iter().find(|(time, _)| time > &at)
+    }
+
+    pub fn last_action(&self, at: DateTime<Local>) -> Option<&(DateTime<Local>, Action)> {
+        self.actions
+            .iter()
+            .take_while(|(time, _)| time <= &at)
+            .last()
+    }
 }
 
 struct ScheduleWatcher {
     #[allow(dead_code)]
-    watcher: notify::RecommendedWatcher,
+    file_watcher: notify::RecommendedWatcher,
     rx_file_change: Receiver<()>,
 }
 
@@ -96,51 +110,81 @@ impl ScheduleWatcher {
             }
         });
         Ok(ScheduleWatcher {
-            watcher,
+            file_watcher: watcher,
             rx_file_change: rx,
         })
     }
 }
 
-pub fn start_processing_schedule<P: AsRef<Path>>(
-    schedule_file: P,
-    on_action: impl Fn(Action, DateTime<Local>),
-) -> Result<()> {
-    let now = Local::now();
+pub struct ScheduleWorker {
+    thread: std::thread::JoinHandle<()>,
+}
 
-    println!(
-        "Starting processing schedule at {}",
-        now.format("%Y-%m-%d %H:%M:%S %Z")
-    );
+impl ScheduleWorker {
+    pub fn start_processing_schedule<
+        F: 'static + Fn(Action, DateTime<Local>) + Send,
+        F2: 'static + Fn(Action, DateTime<Local>) + Send,
+    >(
+        schedule_file: PathBuf,
+        on_action: F,
+        check_action: F2,
+    ) -> Self {
+        let thread = std::thread::spawn(move || {
+            let now = Local::now();
 
-    let watcher = ScheduleWatcher::watch(&schedule_file)?;
+            println!(
+                "Starting processing schedule at {}",
+                now.format("%Y-%m-%d %H:%M:%S %Z")
+            );
 
-    loop {
-        println!("Reading schedule...");
+            let watcher = ScheduleWatcher::watch(&schedule_file).expect("file watcher");
+            let mut schedule = Schedule::from_file(&schedule_file).expect("read schedule");
+            let mut schedule_changed = false;
 
-        let schedule = read_schedule(&schedule_file)?;
+            loop {
+                if schedule_changed {
+                    println!("Reading schedule...");
+                    schedule = Schedule::from_file(&schedule_file).expect("read schedule");
+                }
 
-        if schedule.is_empty() {
-            println!("schedule is empty, waiting for file changes");
-            watcher.rx_file_change.recv().unwrap();
-            continue;
-        }
+                let now = Local::now();
+                let next = schedule.next_action(now);
 
-        println!("Start schedule...");
-
-        for (time, action) in schedule {
-            println!("scheduling next action {:#?} to run at {}", action, time);
-            let timer = timer::Timer::new();
-            let (tx, rx) = bounded(1);
-            let _guard = timer.schedule_with_date(time, move || {
-                let _ignored = tx.send(()); // Avoid unwrapping here.
-            });
-            select! {
-                recv(rx) -> _ => {
-                    on_action(action, time);
-                },
-                recv(watcher.rx_file_change) -> _ => break,
+                match next {
+                    None => {
+                        println!("schedule is empty, waiting for file changes");
+                        watcher.rx_file_change.recv().unwrap();
+                        continue;
+                    }
+                    Some((time, action)) => {
+                        println!("scheduling next action {:#?} to run at {}", action, time);
+                        let timer = timer::Timer::new();
+                        let (tx, rx) = bounded(1);
+                        let _guard = timer.schedule_with_date(*time, move || {
+                            let _ignored = tx.send(()); // Avoid unwrapping here.
+                        });
+                        select! {
+                            recv(rx) -> _ => {
+                                on_action(*action, *time);
+                            },
+                            recv(watcher.rx_file_change) -> _ => {
+                                schedule_changed = true;
+                            },
+                            default(Duration::from_secs(60 * 5)) => {
+                                if let Some((time, action)) = schedule.last_action(Local::now()) {
+                                    check_action(*action, *time);
+                                }
+                            },
+                        }
+                    }
+                }
             }
-        }
+        });
+
+        ScheduleWorker { thread }
+    }
+
+    pub fn join(self) -> std::thread::Result<()> {
+        self.thread.join()
     }
 }

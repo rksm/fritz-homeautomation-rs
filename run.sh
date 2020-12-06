@@ -8,6 +8,7 @@
 #       --schedule data/schedule.txt
 
 # ./target/release/fritz_dect_controller \
+# cargo run --bin testing -- \
 cargo run --bin fritz_dect_controller -- \
       --user admin \
       --password down8406 \
