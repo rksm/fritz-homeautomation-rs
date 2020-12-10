@@ -26,6 +26,7 @@ impl From<&str> for Action {
 #[derive(Debug)]
 pub struct Schedule {
     pub actions: Vec<(DateTime<Local>, Action)>,
+    pub schedule_file: PathBuf,
 }
 
 impl Schedule {
@@ -34,9 +35,10 @@ impl Schedule {
             static ref RE: Regex = Regex::new(r"(.*) (:?on|off)").unwrap();
         }
 
-        let schedule_lines = fs::read_to_string(schedule_file).map_err(|err| my_error!(err))?;
+        let schedule_lines = fs::read_to_string(&schedule_file).map_err(|err| my_error!(err))?;
         let mut schedule = Schedule {
             actions: Vec::new(),
+            schedule_file: schedule_file.as_ref().to_path_buf(),
         };
 
         for line in schedule_lines.split('\n') {
@@ -68,8 +70,8 @@ impl Schedule {
         Ok(schedule)
     }
 
-    pub fn next_action(&self, at: DateTime<Local>) -> Option<&(DateTime<Local>, Action)> {
-        self.actions.iter().find(|(time, _)| time > &at)
+    pub fn next_action(&self, at: DateTime<Local>) -> Option<(DateTime<Local>, Action)> {
+        self.actions.iter().find(|(time, _)| time > &at).cloned()
     }
 
     pub fn last_action(&self, at: DateTime<Local>) -> Option<&(DateTime<Local>, Action)> {
@@ -77,6 +79,10 @@ impl Schedule {
             .iter()
             .take_while(|(time, _)| time <= &at)
             .last()
+    }
+
+    fn watch(&self) -> Result<ScheduleWatcher> {
+        ScheduleWatcher::watch(&self.schedule_file)
     }
 }
 
@@ -116,75 +122,65 @@ impl ScheduleWatcher {
     }
 }
 
-pub struct ScheduleWorker {
-    thread: std::thread::JoinHandle<()>,
+pub trait ScheduleWorker {
+    fn process_next_action(&mut self, action: Action, time: DateTime<Local>) -> Result<()>;
+    fn check_last_action(&mut self) -> Result<()>;
+    fn schedule(&self) -> &Schedule;
+    fn reload_schedule(&mut self) -> Result<()>;
 }
 
-impl ScheduleWorker {
-    pub fn start_processing_schedule<
-        F: 'static + Fn(Action, DateTime<Local>) + Send,
-        F2: 'static + Fn(Action, DateTime<Local>) + Send,
-    >(
-        schedule_file: PathBuf,
-        on_action: F,
-        check_action: F2,
-    ) -> Self {
-        let thread = std::thread::spawn(move || {
+pub fn start_processing_schedule(
+    mut worker: Box<dyn ScheduleWorker + Send>,
+) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        let now = Local::now();
+        println!(
+            "Starting processing schedule at {}",
+            now.format("%Y-%m-%d %H:%M:%S %Z")
+        );
+
+        let watcher = worker.schedule().watch().expect("watcher");
+        let mut schedule_changed = false;
+
+        loop {
+            if schedule_changed {
+                println!("Reading schedule...");
+                worker.reload_schedule().expect("reload schedule");
+            }
+
             let now = Local::now();
+            let next = worker.schedule().next_action(now);
 
-            println!(
-                "Starting processing schedule at {}",
-                now.format("%Y-%m-%d %H:%M:%S %Z")
-            );
-
-            let watcher = ScheduleWatcher::watch(&schedule_file).expect("file watcher");
-            let mut schedule = Schedule::from_file(&schedule_file).expect("read schedule");
-            let mut schedule_changed = false;
-
-            loop {
-                if schedule_changed {
-                    println!("Reading schedule...");
-                    schedule = Schedule::from_file(&schedule_file).expect("read schedule");
+            match next {
+                None => {
+                    println!("schedule is empty, waiting for file changes");
+                    watcher.rx_file_change.recv().unwrap();
+                    continue;
                 }
-
-                let now = Local::now();
-                let next = schedule.next_action(now);
-
-                match next {
-                    None => {
-                        println!("schedule is empty, waiting for file changes");
-                        watcher.rx_file_change.recv().unwrap();
-                        continue;
-                    }
-                    Some((time, action)) => {
-                        println!("scheduling next action {:#?} to run at {}", action, time);
-                        let timer = timer::Timer::new();
-                        let (tx, rx) = bounded(1);
-                        let _guard = timer.schedule_with_date(*time, move || {
-                            let _ignored = tx.send(()); // Avoid unwrapping here.
-                        });
-                        select! {
-                            recv(rx) -> _ => {
-                                on_action(*action, *time);
-                            },
-                            recv(watcher.rx_file_change) -> _ => {
-                                schedule_changed = true;
-                            },
-                            default(Duration::from_secs(60 * 5)) => {
-                                if let Some((time, action)) = schedule.last_action(Local::now()) {
-                                    check_action(*action, *time);
-                                }
-                            },
-                        }
+                Some((time, action)) => {
+                    println!("scheduling next action {:#?} to run at {}", action, time);
+                    let timer = timer::Timer::new();
+                    let (tx, rx) = bounded(1);
+                    let _guard = timer.schedule_with_date(time, move || {
+                        let _ignored = tx.send(()); // Avoid unwrapping here.
+                    });
+                    select! {
+                        recv(rx) -> _ => {
+                            if let Err(err) = worker.process_next_action(action, time) {
+                                eprintln!("action {:?} errored: {}", action, err);
+                            }
+                        },
+                        recv(watcher.rx_file_change) -> _ => {
+                            schedule_changed = true;
+                        },
+                        default(Duration::from_secs(60 * 5)) => {
+                            if let Err(err) = worker.check_last_action() {
+                                eprintln!("check last action errored: {}", err);
+                            }
+                        },
                     }
                 }
             }
-        });
-
-        ScheduleWorker { thread }
-    }
-
-    pub fn join(self) -> std::thread::Result<()> {
-        self.thread.join()
-    }
+        }
+    })
 }

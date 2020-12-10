@@ -1,5 +1,7 @@
+use chrono::Local;
 use clap::{App, Arg};
 use fritz_homeautomation::{api, error, schedule};
+use schedule::ScheduleWorker;
 use std::path::PathBuf;
 use std::process::exit;
 use std::{env::current_dir, ffi::OsStr};
@@ -13,6 +15,85 @@ fn is_on(sid: &str, ain: &str) -> error::Result<bool> {
     });
 
     Ok(is_on.unwrap_or(false))
+}
+
+#[derive(Debug)]
+struct ChristmasScheduleWorker {
+    pub user: String,
+    pub password: String,
+    pub ain: String,
+    pub schedule: schedule::Schedule,
+}
+
+impl ChristmasScheduleWorker {
+    fn login(&self) -> error::Result<String> {
+        match api::get_sid(&self.user, &self.password) {
+            Err(err @ fritz_homeautomation::error::MyError::LoginError()) => {
+                eprintln!("cannot login to fritz");
+                Err(err)
+            }
+            Err(err) => {
+                eprintln!("fritz login error {:?}", err);
+                Err(err)
+            }
+            Ok(sid) => Ok(sid),
+        }
+    }
+}
+
+impl schedule::ScheduleWorker for ChristmasScheduleWorker {
+    fn process_next_action(
+        &mut self,
+        action: schedule::Action,
+        time: chrono::DateTime<chrono::Local>,
+    ) -> error::Result<()> {
+        println!(
+            "running action {:?} at {}",
+            action,
+            time.format("%Y-%m-%d %H:%M:%S %Z")
+        );
+
+        let sid = self.login()?;
+        use schedule::Action::*;
+        match action {
+            TurnOn => api::turn_on(&sid, &self.ain),
+            TurnOff => api::turn_off(&sid, &self.ain),
+            Unknown => Ok(()),
+        }
+    }
+
+    fn check_last_action(&mut self) -> error::Result<()> {
+        let (time, action) = match self.schedule().last_action(Local::now()) {
+            None => {
+                println!("No last action");
+                return Ok(());
+            }
+            Some(next) => next,
+        };
+
+        println!(
+            "checking {:#?} which should have run at {}",
+            action,
+            time.format("%Y-%m-%d %H:%M:%S %Z")
+        );
+        let sid = self.login()?;
+        let on = is_on(&sid, &self.ain).unwrap_or_default();
+        let should_be_on = *action == schedule::Action::TurnOn;
+        if on != should_be_on {
+            api::toggle(&sid, &self.ain)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn schedule(&self) -> &schedule::Schedule {
+        &self.schedule
+    }
+
+    fn reload_schedule(&mut self) -> error::Result<()> {
+        self.schedule = schedule::Schedule::from_file(&self.schedule.schedule_file)?;
+        Ok(())
+    }
 }
 
 fn main() {
@@ -66,53 +147,19 @@ fn main() {
     let user = matches.value_of("user").unwrap();
     let password = matches.value_of("password").unwrap();
     let ain = matches.value_of("ain").unwrap().to_string();
-    let sid = match api::get_sid(user, password) {
-        Err(fritz_homeautomation::error::MyError::LoginError()) => {
-            eprintln!("cannot login to fritz");
-            exit(2);
-        }
-        Err(err) => {
-            eprintln!("{:?}", err);
-            exit(3);
-        }
-        Ok(sid) => sid,
-    };
 
-    let ain2 = ain.clone();
-    let sid2 = sid.clone();
+    let schedule = schedule::Schedule::from_file(&schedule_file).expect("read schedule");
+    let mut worker = Box::new(ChristmasScheduleWorker {
+        user: user.to_string(),
+        password: password.to_string(),
+        ain,
+        schedule,
+    });
 
-    let worker = schedule::ScheduleWorker::start_processing_schedule(
-        schedule_file,
-        move |action, time| {
-            println!(
-                "running action {:?} at {}",
-                action,
-                time.format("%Y-%m-%d %H:%M:%S %Z")
-            );
+    worker.login().expect("testing login");
+    worker.check_last_action().expect("check last action");
 
-            use schedule::Action::*;
-            let result = match action {
-                TurnOn => Some(api::turn_on(&sid, &ain)),
-                TurnOff => Some(api::turn_off(&sid, &ain)),
-                Unknown => None,
-            };
-            if let Some(Err(err)) = result {
-                eprintln!("action {:?} errored: {}", action, err);
-            }
-        },
-        move |action, time| {
-            println!(
-                "checking {:#?} which should have run at {}",
-                action,
-                time.format("%Y-%m-%d %H:%M:%S %Z")
-            );
-            let on = is_on(&sid2, &ain2).unwrap_or_default();
-            let should_be_on = action == schedule::Action::TurnOn;
-            if on != should_be_on {
-                api::toggle(&sid2, &ain2).expect("cannot toggle");
-            }
-        },
-    );
+    let thread = schedule::start_processing_schedule(worker);
 
-    worker.join().unwrap();
+    thread.join().unwrap();
 }
