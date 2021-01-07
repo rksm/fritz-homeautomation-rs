@@ -46,7 +46,7 @@ pub struct Device {
     pub present: bool,
     pub txbusy: bool,
     pub name: String,
-    pub battery: Option<bool>,
+    pub battery: Option<i32>,
     pub batterylow: Option<bool>,
     pub switch: Option<Switch>,
     pub simpleonoff: Option<SimpleOnOff>,
