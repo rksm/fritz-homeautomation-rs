@@ -1,4 +1,5 @@
 use chrono::Datelike;
+use chrono::prelude::*;
 
 // use corelocation_rs::{Location, Locator};
 
@@ -27,8 +28,8 @@ fn main() {
 
     let location = bernau();
 
-    let start = chrono::NaiveDate::from_ymd(2021, 1, 1);
-    let end = chrono::NaiveDate::from_ymd(2021, 1, 31);
+    let start = chrono::NaiveDate::from_ymd(2021, 1, 20);
+    let end = chrono::NaiveDate::from_ymd(2021, 2, 28);
 
     let duration = end - start;
     for days in 0..duration.num_days() {
@@ -42,12 +43,21 @@ fn main() {
             date.day(),
         );
 
-        println!("{} 05:45:00 on", date.format("%Y-%m-%d"));
+        // println!("{} {}", date.format("%Y-%m-%d"));
+        let sunrise = Local.from_utc_datetime(&chrono::NaiveDateTime::from_timestamp(sunrise, 0));
+        let sunset = Local.from_utc_datetime(&chrono::NaiveDateTime::from_timestamp(sunset, 0));
+        // println!(
+        //     "{} {} - {}",
+        //     date.format("%Y-%m-%d"),
+        //     sunrise.format("%Y-%m-%d %H:%M:%S"),
+        //     sunset.format("%Y-%m-%d %H:%M:%S")
+        // );
 
-        let t = chrono::NaiveDateTime::from_timestamp(sunrise, 0) - chrono::Duration::minutes(10);
+        let t = sunrise - chrono::Duration::minutes(25);
+        println!("{} 05:45:00 on", date.format("%Y-%m-%d"));
         println!("{} off", t.format("%Y-%m-%d %H:%M:%S"));
 
-        let t = chrono::NaiveDateTime::from_timestamp(sunset, 0) + chrono::Duration::minutes(10);
+        let t = sunset + chrono::Duration::minutes(25);
         println!("{} on", t.format("%Y-%m-%d %H:%M:%S"));
         println!("{} 23:05:00 off", date.format("%Y-%m-%d"));
 
