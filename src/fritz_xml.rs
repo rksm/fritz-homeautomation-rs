@@ -88,7 +88,10 @@ pub struct Temperature {
 pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
     match from_reader(xml.as_bytes()) {
         Ok(info) => Ok(info),
-        Err(err) => Err(err.into()),
+        Err(err) => {
+            eprintln!("[parse_session_info] xml parser error: {:?}", err);
+            Err(err.into())
+        }
     }
 }
 
@@ -96,7 +99,10 @@ pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
 pub fn parse_device_infos(xml: String) -> Result<Vec<Device>> {
     match from_reader::<&[u8], DeviceList>(xml.as_bytes()) {
         Ok(device_list) => Ok(device_list.devices),
-        Err(err) => Err(err.into()),
+        Err(err) => {
+            eprintln!("[parse_device_infos] xml parser error: {:?}", err);
+            Err(err.into())
+        }
     }
 }
 

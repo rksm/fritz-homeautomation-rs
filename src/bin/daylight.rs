@@ -1,7 +1,16 @@
 use chrono::Datelike;
-use corelocation_rs::{Location, Locator};
 
-const LOOKUP_LOCATION: bool = false;
+// use corelocation_rs::{Location, Locator};
+
+// const LOOKUP_LOCATION: bool = false;
+
+struct Location {
+    latitude: f64,
+    longitude: f64,
+    h_accuracy: i32,
+    altitude: i32,
+    v_accuracy: i32,
+}
 
 fn bernau() -> Location {
     Location {
@@ -13,14 +22,10 @@ fn bernau() -> Location {
     }
 }
 
-fn main() -> Result<(), corelocation_rs::Error> {
+fn main() {
     println!("{}", chrono::Local::now().format("%Y-%m-%d"));
 
-    let location = if LOOKUP_LOCATION {
-        Location::get()?
-    } else {
-        bernau()
-    };
+    let location = bernau();
 
     let start = chrono::NaiveDate::from_ymd(2021, 1, 1);
     let end = chrono::NaiveDate::from_ymd(2021, 1, 31);
@@ -48,6 +53,4 @@ fn main() -> Result<(), corelocation_rs::Error> {
 
         println!();
     }
-
-    Ok(())
 }
