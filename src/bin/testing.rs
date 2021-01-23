@@ -1,8 +1,9 @@
 use std::env;
 
+use anyhow::Result;
 use dotenv::dotenv;
+use fritz_homeautomation::api;
 use fritz_homeautomation::schedule;
-use fritz_homeautomation::{api, error::Result};
 
 fn main() -> Result<()> {
     dotenv().ok();

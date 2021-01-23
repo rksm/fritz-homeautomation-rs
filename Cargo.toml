@@ -23,6 +23,7 @@ notify = "4.0.15"
 clap = "2.33.3"
 sunrise = "1.0.0"
 # openssl = { version = "0.10", features = ["vendored"], default-features = false }
+anyhow = "1.0"
 
 
 [target.'cfg(target_os = "macos")'.dependencies]

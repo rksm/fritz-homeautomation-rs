@@ -1,12 +1,12 @@
 use chrono::Local;
 use clap::{App, Arg};
-use fritz_homeautomation::{api, error, schedule};
+use fritz_homeautomation::{api, schedule};
 use schedule::ScheduleWorker;
 use std::path::PathBuf;
 use std::process::exit;
 use std::{env::current_dir, ffi::OsStr};
 
-fn is_on(sid: &str, ain: &str) -> error::Result<bool> {
+fn is_on(sid: &str, ain: &str) -> anyhow::Result<bool> {
     let devices: Vec<_> = api::device_infos_avm(&sid)?;
 
     let is_on = devices.into_iter().find_map(|dev| match dev {
@@ -26,18 +26,8 @@ struct ChristmasScheduleWorker {
 }
 
 impl ChristmasScheduleWorker {
-    fn login(&self) -> error::Result<String> {
-        match api::get_sid(&self.user, &self.password) {
-            Err(err @ fritz_homeautomation::error::MyError::LoginError()) => {
-                eprintln!("cannot login to fritz");
-                Err(err)
-            }
-            Err(err) => {
-                eprintln!("fritz login error {:?}", err);
-                Err(err)
-            }
-            Ok(sid) => Ok(sid),
-        }
+    fn login(&self) -> anyhow::Result<String> {
+        api::get_sid(&self.user, &self.password)
     }
 }
 
@@ -46,7 +36,7 @@ impl schedule::ScheduleWorker for ChristmasScheduleWorker {
         &mut self,
         action: schedule::Action,
         time: chrono::DateTime<chrono::Local>,
-    ) -> error::Result<()> {
+    ) -> anyhow::Result<()> {
         println!(
             "running action {:?} at {}",
             action,
@@ -62,7 +52,7 @@ impl schedule::ScheduleWorker for ChristmasScheduleWorker {
         }
     }
 
-    fn check_last_action(&mut self) -> error::Result<()> {
+    fn check_last_action(&mut self) -> anyhow::Result<()> {
         let (time, action) = match self.schedule().last_action(Local::now()) {
             None => {
                 println!("No last action");
@@ -90,7 +80,7 @@ impl schedule::ScheduleWorker for ChristmasScheduleWorker {
         &self.schedule
     }
 
-    fn reload_schedule(&mut self) -> error::Result<()> {
+    fn reload_schedule(&mut self) -> anyhow::Result<()> {
         self.schedule = schedule::Schedule::from_file(&self.schedule.schedule_file)?;
         Ok(())
     }

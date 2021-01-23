@@ -1,11 +1,10 @@
 use dotenv::dotenv;
 use fritz_homeautomation::api::*;
-use fritz_homeautomation::error::Result;
 use std::env;
 use std::thread;
 use std::time::Duration;
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     dotenv().ok();
 
     let user = env::var("FRITZ_USER").expect("Need FRITZ_USER env var");

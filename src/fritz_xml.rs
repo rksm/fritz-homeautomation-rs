@@ -1,12 +1,11 @@
 #![allow(dead_code)]
 
-use crate::error::Result;
 use serde::{Deserialize, Deserializer};
 use serde_xml_rs::from_reader;
 
 // response of login_sid.lua
 
-fn deserialize_maybe_u32<'de, D>(d: D) -> std::result::Result<u32, D::Error>
+fn deserialize_maybe_u32<'de, D>(d: D) -> Result<u32, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -47,7 +46,7 @@ pub struct Device {
     pub txbusy: bool,
     pub name: String,
     pub battery: Option<i32>,
-    pub batterylow: Option<bool>,
+    pub batterylow: bool,
     pub switch: Option<Switch>,
     pub simpleonoff: Option<SimpleOnOff>,
     pub powermeter: Option<PowerMeter>,
@@ -85,25 +84,13 @@ pub struct Temperature {
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
-    match from_reader(xml.as_bytes()) {
-        Ok(info) => Ok(info),
-        Err(err) => {
-            eprintln!("[parse_session_info] xml parser error: {:?}", err);
-            Err(err.into())
-        }
-    }
+pub fn parse_session_info(xml: &str) -> Result<SessionInfo, serde_xml_rs::Error> {
+    from_reader(xml.as_bytes())
 }
 
 /// Parses raw [`Device`]s.
-pub fn parse_device_infos(xml: String) -> Result<Vec<Device>> {
-    match from_reader::<&[u8], DeviceList>(xml.as_bytes()) {
-        Ok(device_list) => Ok(device_list.devices),
-        Err(err) => {
-            eprintln!("[parse_device_infos] xml parser error: {:?}", err);
-            Err(err.into())
-        }
-    }
+pub fn parse_device_infos(xml: String) -> Result<Vec<Device>, serde_xml_rs::Error> {
+    from_reader::<&[u8], DeviceList>(xml.as_bytes()).map(|list| list.devices)
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -195,11 +182,8 @@ pub struct DeviceStatValues {
     pub grid: usize,
 }
 
-pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>> {
-    let stats: RawDeviceStats = match from_reader(xml.as_bytes()) {
-        Err(err) => return Err(err.into()),
-        Ok(stats) => stats,
-    };
+pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, serde_xml_rs::Error> {
+    let stats: RawDeviceStats = from_reader(xml.as_bytes())?;
 
     let mut result: Vec<DeviceStats> = Vec::new();
 
