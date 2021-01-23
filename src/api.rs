@@ -1,8 +1,8 @@
+use anyhow::{anyhow, Context};
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest::blocking::{get as GET, Client, Response};
 
-use crate::error::Result;
 use crate::fritz_xml;
 use crate::fritz_xml::*;
 
@@ -30,8 +30,10 @@ fn request_response(password: &str, challenge: &str) -> String {
 
 const DEFAULT_SID: &str = "0000000000000000";
 
-pub fn get_sid(user: &str, password: &str) -> Result<String> {
-    let res: Response = GET("http://fritz.box/login_sid.lua")?.error_for_status()?;
+pub fn get_sid(user: &str, password: &str) -> anyhow::Result<String> {
+    let res: Response = GET("http://fritz.box/login_sid.lua")?
+        .error_for_status()
+        .with_context(|| format!("GET login_sid.lua for user {}", user))?;
     let xml = res.text()?;
     let info = fritz_xml::parse_session_info(&xml)?;
     if DEFAULT_SID != info.sid {
@@ -46,7 +48,9 @@ pub fn get_sid(user: &str, password: &str) -> Result<String> {
     let info = fritz_xml::parse_session_info(&login.text()?)?;
 
     if DEFAULT_SID == info.sid {
-        return Err(crate::error::MyError::LoginError());
+        return Err(anyhow!(
+            "login error - sid is still the default after login attempt"
+        ));
     }
 
     Ok(info.sid)
@@ -64,7 +68,7 @@ enum Commands {
     SetSwitchToggle,
 }
 
-fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> Result<String> {
+fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> anyhow::Result<String> {
     use Commands::*;
     let cmd = match cmd {
         GetDeviceListInfos => "getdevicelistinfos",
@@ -99,9 +103,12 @@ fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> Result<String> {
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 /// Parses raw [`Device`]s.
-pub fn device_infos(sid: &str) -> Result<Vec<Device>> {
+pub fn device_infos(sid: &str) -> anyhow::Result<Vec<Device>> {
     let xml = request(Commands::GetDeviceListInfos, &sid, None)?;
-    parse_device_infos(xml)
+    match parse_device_infos(xml) {
+        Ok(infos) => Ok(infos),
+        Err(err) => Err(anyhow!("[parse_device_infos] error: {}", err)),
+    }
 }
 
 #[derive(Debug)]
@@ -121,7 +128,7 @@ pub enum AVMDevice {
     Other(Device),
 }
 
-pub fn device_infos_avm(sid: &str) -> Result<Vec<AVMDevice>> {
+pub fn device_infos_avm(sid: &str) -> anyhow::Result<Vec<AVMDevice>> {
     let devices = device_infos(sid)?;
     let result: Vec<AVMDevice> = devices
         .into_iter()
@@ -155,24 +162,27 @@ pub fn device_infos_avm(sid: &str) -> Result<Vec<AVMDevice>> {
     Ok(result)
 }
 
-pub fn fetch_device_stats(sid: &str, ain: &str) -> Result<Vec<DeviceStats>> {
+pub fn fetch_device_stats(sid: &str, ain: &str) -> anyhow::Result<Vec<DeviceStats>> {
     let xml = request(Commands::GetBasicDeviceStats, sid, Some(ain))?;
-    parse_device_stats(xml)
+    match parse_device_stats(xml) {
+        Ok(stats) => Ok(stats),
+        Err(err) => Err(anyhow!("[parse_device_stats] error: {}", err)),
+    }
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-pub fn turn_on(sid: &str, ain: &str) -> Result<()> {
+pub fn turn_on(sid: &str, ain: &str) -> anyhow::Result<()> {
     request(Commands::SetSwitchOn, sid, Some(ain))?;
     Ok(())
 }
 
-pub fn turn_off(sid: &str, ain: &str) -> Result<()> {
+pub fn turn_off(sid: &str, ain: &str) -> anyhow::Result<()> {
     request(Commands::SetSwitchOff, sid, Some(ain))?;
     Ok(())
 }
 
-pub fn toggle(sid: &str, ain: &str) -> Result<()> {
+pub fn toggle(sid: &str, ain: &str) -> anyhow::Result<()> {
     request(Commands::SetSwitchToggle, sid, Some(ain))?;
     Ok(())
 }

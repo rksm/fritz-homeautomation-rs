@@ -1,4 +1,3 @@
-use crate::{error::Result, my_error};
 use chrono::prelude::*;
 use crossbeam_channel::{bounded, select, unbounded, Receiver};
 use lazy_static::lazy_static;
@@ -30,12 +29,12 @@ pub struct Schedule {
 }
 
 impl Schedule {
-    pub fn from_file<P: AsRef<Path>>(schedule_file: P) -> Result<Self> {
+    pub fn from_file<P: AsRef<Path>>(schedule_file: P) -> anyhow::Result<Self> {
         lazy_static! {
             static ref RE: Regex = Regex::new(r"(.*) (:?on|off)").unwrap();
         }
 
-        let schedule_lines = fs::read_to_string(&schedule_file).map_err(|err| my_error!(err))?;
+        let schedule_lines = fs::read_to_string(&schedule_file)?;
         let mut schedule = Schedule {
             actions: Vec::new(),
             schedule_file: schedule_file.as_ref().to_path_buf(),
@@ -81,7 +80,7 @@ impl Schedule {
             .last()
     }
 
-    fn watch(&self) -> Result<ScheduleWatcher> {
+    fn watch(&self) -> anyhow::Result<ScheduleWatcher> {
         ScheduleWatcher::watch(&self.schedule_file)
     }
 }
@@ -93,15 +92,12 @@ struct ScheduleWatcher {
 }
 
 impl ScheduleWatcher {
-    fn watch<P: AsRef<Path>>(file: P) -> Result<Self> {
+    fn watch<P: AsRef<Path>>(file: P) -> anyhow::Result<Self> {
         let (tx, rx) = unbounded();
         // notify works with std mpsc so we wrap that
         let (tx2, rx2) = std::sync::mpsc::channel();
-        let mut watcher =
-            notify::watcher(tx2, Duration::from_secs(1)).map_err(|err| my_error!(err))?;
-        watcher
-            .watch(file, notify::RecursiveMode::NonRecursive)
-            .map_err(|err| my_error!(err))?;
+        let mut watcher = notify::watcher(tx2, Duration::from_secs(1))?;
+        watcher.watch(file, notify::RecursiveMode::NonRecursive)?;
         std::thread::spawn(move || loop {
             match rx2.recv() {
                 Err(err) => {
@@ -123,10 +119,10 @@ impl ScheduleWatcher {
 }
 
 pub trait ScheduleWorker {
-    fn process_next_action(&mut self, action: Action, time: DateTime<Local>) -> Result<()>;
-    fn check_last_action(&mut self) -> Result<()>;
+    fn process_next_action(&mut self, action: Action, time: DateTime<Local>) -> anyhow::Result<()>;
+    fn check_last_action(&mut self) -> anyhow::Result<()>;
     fn schedule(&self) -> &Schedule;
-    fn reload_schedule(&mut self) -> Result<()>;
+    fn reload_schedule(&mut self) -> anyhow::Result<()>;
 }
 
 pub fn start_processing_schedule(
