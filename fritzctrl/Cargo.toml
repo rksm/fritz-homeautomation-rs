@@ -4,6 +4,10 @@ version = "0.3.1"
 authors = ["Robert Krahn <robert.krahn@gmail.com>"]
 edition = "2018"
 license = "MIT"
+description = """
+Command line utility for controlling AVM Fritz devices
+"""
+keywords = ["avm", "fritz", "homeautomation", "smarthome"]
 
 [dependencies]
 anyhow = "1.0"
