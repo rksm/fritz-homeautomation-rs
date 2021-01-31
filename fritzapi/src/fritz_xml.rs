@@ -1,11 +1,12 @@
 #![allow(dead_code)]
 
+use crate::error::{FritzError, Result};
 use serde::{Deserialize, Deserializer};
 use serde_xml_rs::from_reader;
 
 // response of login_sid.lua
 
-fn deserialize_maybe_u32<'de, D>(d: D) -> Result<u32, D::Error>
+fn deserialize_maybe_u32<'de, D>(d: D) -> std::result::Result<u32, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -89,13 +90,21 @@ pub struct Temperature {
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-pub fn parse_session_info(xml: &str) -> Result<SessionInfo, serde_xml_rs::Error> {
-    from_reader(xml.as_bytes())
+pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
+    from_reader(xml.as_bytes()).map_err(|err| {
+        eprintln!("cannot parse session info");
+        err.into()
+    })
 }
 
 /// Parses raw [`Device`]s.
-pub fn parse_device_infos(xml: String) -> Result<Vec<Device>, serde_xml_rs::Error> {
-    from_reader::<&[u8], DeviceList>(xml.as_bytes()).map(|list| list.devices)
+pub fn parse_device_infos(xml: String) -> Result<Vec<Device>> {
+    from_reader::<&[u8], DeviceList>(xml.as_bytes())
+        .map(|list| list.devices)
+        .map_err(|err| {
+            eprintln!("cannot parse device infos");
+            err.into()
+        })
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -207,18 +216,18 @@ impl DeviceStatsKind {
 }
 
 impl std::str::FromStr for DeviceStatsKind {
-    type Err = anyhow::Error;
+    type Err = FritzError;
 
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
+    fn from_str(input: &str) -> Result<Self> {
         match input.to_lowercase().as_str() {
             "temp" | "temperature" | "celsius" | "c" => Ok(DeviceStatsKind::Temperature),
             "power" | "watt" | "w" => Ok(DeviceStatsKind::Power),
             "energy" | "wh" => Ok(DeviceStatsKind::Energy),
             "volt" | "v" | "voltage" => Ok(DeviceStatsKind::Voltage),
-            _ => Err(anyhow::anyhow!(
+            _ => Err(FritzError::ParserError(format!(
                 "Cannot convert {:?} to DeviceStatsKind",
                 input
-            )),
+            ))),
         }
     }
 }
@@ -235,7 +244,7 @@ pub struct DeviceStatValues {
     pub grid: usize,
 }
 
-pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, serde_xml_rs::Error> {
+pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, > {
     let stats: RawDeviceStats = from_reader(xml.as_bytes())?;
 
     let mut result: Vec<DeviceStats> = Vec::new();
@@ -281,6 +290,24 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, serde_xml_rs:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_session_info() {
+        let xml = r##"
+<?xml version="1.0" encoding="utf-8"?>
+<SessionInfo>
+  <SID>0000000000000000</SID>
+  <Challenge>63233c3d</Challenge>
+  <BlockTime>0</BlockTime>
+  <Rights></Rights>
+</SessionInfo>
+"##;
+
+        let info = super::parse_session_info(xml).unwrap();
+        assert_eq!(info.block_time, 0);
+        assert_eq!(info.challenge, "63233c3d");
+        assert_eq!(info.sid, "0000000000000000");
+    }
 
     #[test]
     fn parse_device_stat_kind() {

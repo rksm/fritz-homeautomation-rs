@@ -1,8 +1,8 @@
 use chrono::prelude::*;
 use chrono::Datelike;
 
-/// https://developer.apple.com/documentation/corelocation/cllocation
-/// https://developer.apple.com/documentation/corelocation/cllocationcoordinate2d
+/// <https://developer.apple.com/documentation/corelocation/cllocation>
+/// <https://developer.apple.com/documentation/corelocation/cllocationcoordinate2d>
 pub struct Location {
     /// The latitude in degrees.
     pub latitude: f64,

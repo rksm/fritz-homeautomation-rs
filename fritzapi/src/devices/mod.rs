@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::api;
+use crate::error::Result;
 use crate::fritz_xml as xml;
 
 mod fritz_dect_2xx;
@@ -12,8 +13,30 @@ pub enum AVMDevice {
     Other(xml::Device),
 }
 
+impl std::fmt::Display for AVMDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AVMDevice::FritzDect2XX(dev @ FritzDect2XX { .. }) => {
+                writeln!(
+                    f,
+                    "identifier={:?} productname={:?} name={:?}",
+                    dev.identifier, dev.productname, dev.name
+                )?;
+            }
+            AVMDevice::Other(dev) => {
+                writeln!(
+                    f,
+                    "Unsupported device identifier={:?} productname={:?} name={:?}",
+                    dev.identifier, dev.productname, dev.name
+                )?;
+            }
+        };
+        Ok(())
+    }
+}
+
 impl AVMDevice {
-    pub fn list(sid: &str) -> anyhow::Result<Vec<AVMDevice>> {
+    pub fn list(sid: &str) -> Result<Vec<AVMDevice>> {
         let devices = api::device_infos(sid)?;
         let result: Vec<AVMDevice> = devices
             .into_iter()
@@ -81,81 +104,22 @@ impl AVMDevice {
         }
     }
 
-    pub fn fetch_device_stats(&self, sid: &str) -> anyhow::Result<Vec<xml::DeviceStats>> {
+    pub fn fetch_device_stats(&self, sid: &str) -> Result<Vec<xml::DeviceStats>> {
         api::fetch_device_stats(self.id(), sid)
     }
 
-    pub fn print_info(&self, sid: &str, kinds: Option<Vec<xml::DeviceStatsKind>>, limit: Option<usize>) -> anyhow::Result<()> {
-        match self {
-            AVMDevice::FritzDect2XX(dev @ FritzDect2XX { .. }) => {
-                println!(
-                    "Device identifier={:?} productname={:?} name={:?}",
-                    dev.identifier, dev.productname, dev.name
-                );
-            }
-            AVMDevice::Other(dev) => {
-                println!(
-                    "Unsupported device identifier={:?} productname={:?} name={:?}",
-                    dev.identifier, dev.productname, dev.name
-                );
-            }
-        }
-
-        let stats = self.fetch_device_stats(&sid)?;
-        let kinds = kinds.map(|val| val.into_iter().collect());
-        for stat in stats {
-            print_stat(&stat, &kinds, limit);
-        }
-
-        Ok(())
-    }
-
-    pub fn turn_on(&mut self, sid: &str) -> anyhow::Result<()> {
+    pub fn turn_on(&mut self, sid: &str) -> Result<()> {
         api::request(api::Commands::SetSwitchOn, sid, Some(self.id()))?;
         Ok(())
     }
 
-    pub fn turn_off(&mut self, sid: &str) -> anyhow::Result<()> {
+    pub fn turn_off(&mut self, sid: &str) -> Result<()> {
         api::request(api::Commands::SetSwitchOff, sid, Some(self.id()))?;
         Ok(())
     }
 
-    pub fn toggle(&mut self, sid: &str) -> anyhow::Result<()> {
+    pub fn toggle(&mut self, sid: &str) -> Result<()> {
         api::request(api::Commands::SetSwitchToggle, sid, Some(self.id()))?;
         Ok(())
-    }
-}
-
-fn print_stat(
-    stat: &xml::DeviceStats,
-    kinds: &Option<HashSet<xml::DeviceStatsKind>>,
-    limit: Option<usize>,
-) {
-    let now = chrono::Local::now();
-    println!("{:?}", stat.kind);
-
-    match kinds {
-        Some(kinds) if !kinds.contains(&stat.kind) => return,
-        _ => {},
-    }
-
-    for values in &stat.values {
-        let mut n = 0;
-        let mut time = now;
-        println!("grid: {}", values.grid);
-        for val in &values.values {
-            println!(
-                "{time} {val}{unit}",
-                time = time.format("%y-%m-%d %H:%M:%S"),
-                val = val,
-                unit = stat.kind.unit()
-            );
-            time = time - chrono::Duration::seconds(values.grid as i64);
-            n += 1;
-            match limit {
-                Some(limit) if n > limit => break,
-                _ => continue,
-            }
-        }
     }
 }

@@ -1,10 +1,9 @@
-use anyhow::{anyhow, Context};
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest::blocking::{get as GET, Client, Response};
 
-use crate::fritz_xml;
-use crate::fritz_xml::*;
+use crate::error::{FritzError, Result};
+use crate::fritz_xml as xml;
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -32,12 +31,16 @@ const DEFAULT_SID: &str = "0000000000000000";
 
 /// Requests a temporary token (session id = sid) from the fritz box using user
 /// name and password.
-pub fn get_sid(user: &str, password: &str) -> anyhow::Result<String> {
+pub fn get_sid(user: &str, password: &str) -> Result<String> {
     let res: Response = GET("http://fritz.box/login_sid.lua")?
         .error_for_status()
-        .with_context(|| format!("GET login_sid.lua for user {}", user))?;
+        .map_err(|err| {
+            eprintln!("GET login_sid.lua for user {}", user);
+            err
+        })?;
+
     let xml = res.text()?;
-    let info = fritz_xml::parse_session_info(&xml)?;
+    let info = xml::parse_session_info(&xml)?;
     if DEFAULT_SID != info.sid {
         return Ok(info.sid);
     }
@@ -47,11 +50,11 @@ pub fn get_sid(user: &str, password: &str) -> anyhow::Result<String> {
         user, response
     );
     let login: Response = GET(&url)?.error_for_status()?;
-    let info = fritz_xml::parse_session_info(&login.text()?)?;
+    let info = xml::parse_session_info(&login.text()?)?;
 
     if DEFAULT_SID == info.sid {
-        return Err(anyhow!(
-            "login error - sid is still the default after login attempt"
+        return Err(FritzError::LoginError(
+            "login error - sid is still the default after login attempt".to_string(),
         ));
     }
 
@@ -71,7 +74,7 @@ pub(crate) enum Commands {
 }
 
 /// Sends raw HTTP requests to the fritz box.
-pub(crate) fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> anyhow::Result<String> {
+pub(crate) fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> Result<String> {
     use Commands::*;
     let cmd = match cmd {
         GetDeviceListInfos => "getdevicelistinfos",
@@ -106,46 +109,21 @@ pub(crate) fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> anyhow::Re
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 /// Requests & parses raw [`Device`]s.
-pub(crate) fn device_infos(sid: &str) -> anyhow::Result<Vec<Device>> {
+pub(crate) fn device_infos(sid: &str) -> Result<Vec<xml::Device>> {
     let xml = request(Commands::GetDeviceListInfos, &sid, None)?;
-    match parse_device_infos(xml) {
-        Ok(infos) => Ok(infos),
-        Err(err) => Err(anyhow!("[parse_device_infos] error: {}", err)),
-    }
+    xml::parse_device_infos(xml)
 }
 
 /// Requests & parses raw [`DeviceStats`]s.
-pub(crate) fn fetch_device_stats(ain: &str, sid: &str) -> anyhow::Result<Vec<DeviceStats>> {
+pub(crate) fn fetch_device_stats(ain: &str, sid: &str) -> Result<Vec<xml::DeviceStats>> {
     let xml = request(Commands::GetBasicDeviceStats, sid, Some(ain))?;
-    match parse_device_stats(xml) {
-        Ok(stats) => Ok(stats),
-        Err(err) => Err(anyhow!("[parse_device_stats] error: {}", err)),
-    }
+    xml::parse_device_stats(xml)
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 #[cfg(test)]
 mod tests {
-
-    #[test]
-    fn parse_session_info() {
-        let xml = r##"
-<?xml version="1.0" encoding="utf-8"?>
-<SessionInfo>
-  <SID>0000000000000000</SID>
-  <Challenge>63233c3d</Challenge>
-  <BlockTime>0</BlockTime>
-  <Rights></Rights>
-</SessionInfo>
-"##;
-
-        let info = super::parse_session_info(xml).unwrap();
-        assert_eq!(info.block_time, 0);
-        assert_eq!(info.challenge, "63233c3d");
-        assert_eq!(info.sid, "0000000000000000");
-    }
-
     #[test]
     fn request_response() {
         let response = super::request_response("mühe", "foo");
