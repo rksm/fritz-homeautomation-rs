@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest::blocking::{get as GET, Client, Response};
+use log::info;
 
 use crate::error::{FritzError, Result};
 use crate::fritz_xml as xml;
@@ -96,7 +97,7 @@ pub(crate) fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> Result<Str
     }
     let response = client.send()?;
     let status = response.status();
-    println!(
+    info!(
         "[fritz api] {} status: {:?} {:?}",
         cmd,
         status,

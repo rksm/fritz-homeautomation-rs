@@ -266,7 +266,7 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, > {
                         values: ea
                             .values
                             .split(',')
-                            .filter_map(|val| val.parse::<f32>().ok().map(|val| val * multiplier))
+                            .filter_map(|val| val.parse::<f32>().ok().map(|val| (val * multiplier).round()))
                             .collect(),
                     })
                     .collect(),
@@ -281,7 +281,7 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, > {
         &mut result,
     );
     process_raw(stats.energy, DeviceStatsKind::Energy, 1.0, &mut result);
-    process_raw(stats.power, DeviceStatsKind::Power, 1.0, &mut result);
+    process_raw(stats.power, DeviceStatsKind::Power, 0.001, &mut result);
     process_raw(stats.voltage, DeviceStatsKind::Voltage, 0.001, &mut result);
 
     Ok(result)

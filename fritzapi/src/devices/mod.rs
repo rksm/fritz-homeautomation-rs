@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::api;
 use crate::error::Result;
 use crate::fritz_xml as xml;

@@ -1,5 +1,5 @@
 [package]
-name = "fritz-homeautomation"
+name = "fritzctrl"
 version = "0.3.0"
 authors = ["Robert Krahn <robert.krahn@gmail.com>"]
 edition = "2018"
@@ -14,26 +14,16 @@ anyhow = "1.0"
 chrono = "0.4.19"
 clap = "2.33.3"
 crossbeam-channel = "0.5.0"
-dotenv = "0.15.0"
 env_logger = "0.8.2"
 lazy_static = "1.4.0"
 log = "0.4.13"
-md5 = "0.7.0"
 notify = "4.0.15"
 regex = "1.4.2"
-serde = {version = "1.0.120", features = ["derive"]}
-serde-xml-rs = "0.4.0"
 sunrise = "1.0.0"
 timer = "0.2.0"
 parse_duration = "2.1.0"
-termion = "1.5.6"
 prettytable-rs = "0.8.0"
-fritzapi = {path = "../fritzapi"}
-
-[dependencies.reqwest]
-version = "0.11.0"
-features = ["blocking", "rustls-tls"]
-default-features = false
+fritzapi = { path = "../fritzapi", version = "0.3.0" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 corelocation-rs = { git = "https://github.com/nthapaliya/corelocation-rs" }

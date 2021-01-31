@@ -1,10 +1,10 @@
 use clap::{App, Arg, ArgMatches};
 use std::process::exit;
 
-mod parser;
 mod daylight;
-mod schedule;
 mod list;
+mod parser;
+mod schedule;
 
 fn daylight(args: &ArgMatches) {
     // get date arguments
@@ -80,6 +80,8 @@ fn switch(args: &ArgMatches) -> anyhow::Result<()> {
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 fn main() {
+    env_logger::init();
+
     let user = Arg::with_name("user")
         .long("user")
         .short("u")
@@ -177,10 +179,16 @@ fn main() {
             daylight(args);
         }
         "list" => {
-            list::list(args.subcommand_matches("list").unwrap()).unwrap();
+            if let Err(err) = list::list(args.subcommand_matches("list").unwrap()) {
+                println!("{}", err);
+                exit(2);
+            }
         }
         "switch" => {
-            switch(args.subcommand_matches("switch").unwrap()).unwrap();
+            if let Err(err) = switch(args.subcommand_matches("switch").unwrap()) {
+                println!("{}", err);
+                exit(2);
+            }
         }
         _ => {
             app.print_help().unwrap();

@@ -8,10 +8,9 @@ description = """
 Library for interfacing with the \"AVM Home Automation\" API
 (https://avm.de/fileadmin/user_upload/Global/Service/Schnittstellen/AHA-HTTP-Interface.pdf).
 """
-keywords = ["avm", "fritz", "homeautomation", "dect", "smart home", "outlet"]
+keywords = ["avm", "fritz", "homeautomation", "dect", "smarthome", "outlet"]
 
 [dependencies]
-env_logger = "0.8.2"
 lazy_static = "1.4.0"
 log = "0.4.13"
 md5 = "0.7.0"

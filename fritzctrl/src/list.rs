@@ -1,5 +1,4 @@
-use clap::{App, Arg, ArgMatches};
-use fritzapi;
+use clap::ArgMatches;
 use prettytable::{format, Cell, Row, Table};
 use std::collections::HashSet;
 
@@ -7,15 +6,18 @@ pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
     let user = args.value_of("user").unwrap();
     let password = args.value_of("password").unwrap();
     let ain = args.value_of("device");
-    let kinds = args
-        .value_of("kinds")
-        .map(|kinds| crate::parser::parse_kinds(kinds).unwrap_or_default());
+    let kinds = args.value_of("kinds").map(|kinds| {
+        crate::parser::parse_kinds(kinds)
+            .unwrap_or_default()
+            .into_iter()
+            .collect()
+    });
     let limit = args
         .value_of("limit")
         .map(|limit| limit.parse().unwrap_or_default());
 
     let sid = fritzapi::get_sid(&user, &password)?;
-    let devices: Vec<_> = fritzapi::list_devices(&sid)?;
+    let devices = fritzapi::list_devices(&sid)?;
 
     if let Some(ain) = ain {
         let device = match devices.into_iter().find(|dev| dev.id() == ain) {
@@ -24,30 +26,23 @@ pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
             }
             Some(device) => device,
         };
-        println!("{}", device);
-        print_info(&device, &sid, kinds, limit)?;
+
+        let tables = device_detail_table(&sid, &device, &kinds, limit)?
+            .into_iter()
+            .map(|ea| ea.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if kinds.is_none() {
+            print_device_table(&[device]);
+            println!();
+        }
+        print!("{}", tables);
+
         return Ok(());
     }
 
     println!("found {} devices", devices.len());
-
-    let mut table = create_table();
-    table.set_titles(Row::new(vec![
-        Cell::new_align("id", format::Alignment::CENTER),
-        Cell::new_align("product", format::Alignment::CENTER),
-        Cell::new_align("name", format::Alignment::CENTER),
-        Cell::new_align("state", format::Alignment::CENTER),
-    ]));
-
-    for device in devices {
-        table.add_row(Row::new(vec![
-            Cell::new(device.id()),
-            Cell::new(device.productname()),
-            Cell::new(device.name()),
-            Cell::new(device.state()),
-        ]));
-    }
-    table.printstd();
+    print_device_table(&devices);
 
     Ok(())
 }
@@ -66,45 +61,68 @@ fn create_table() -> Table {
     table
 }
 
-fn print_info(
-    device: &fritzapi::AVMDevice,
-    sid: &str,
-    kinds: Option<Vec<fritzapi::DeviceStatsKind>>,
-    limit: Option<usize>,
-) -> anyhow::Result<()> {
-    let stats = device.fetch_device_stats(&sid)?;
-    let kinds = kinds.map(|val| val.into_iter().collect());
-    for stat in stats {
-        print_stat(&stat, &kinds, limit);
-    }
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-    Ok(())
+fn print_device_table(devices: &[fritzapi::AVMDevice]) {
+    let mut table = create_table();
+    table.set_titles(Row::new(vec![
+        Cell::new_align("id", format::Alignment::CENTER),
+        Cell::new_align("product", format::Alignment::CENTER),
+        Cell::new_align("name", format::Alignment::CENTER),
+        Cell::new_align("state", format::Alignment::CENTER),
+    ]));
+
+    for device in devices {
+        table.add_row(Row::new(vec![
+            Cell::new(device.id()),
+            Cell::new(device.productname()),
+            Cell::new(device.name()),
+            Cell::new(device.state()),
+        ]));
+    }
+    table.printstd();
 }
 
-fn print_stat(
-    stat: &fritzapi::DeviceStats,
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+fn device_detail_table(
+    sid: &str,
+    device: &fritzapi::AVMDevice,
     kinds: &Option<HashSet<fritzapi::DeviceStatsKind>>,
     limit: Option<usize>,
-) {
+) -> anyhow::Result<Vec<Table>> {
+    device
+        .fetch_device_stats(&sid)?
+        .into_iter()
+        .filter_map(|stat| {
+            match kinds {
+                Some(kinds) if !kinds.contains(&stat.kind) => return None,
+                _ => {}
+            }
+            let mut table = create_table();
+            table.set_titles(Row::new(vec![
+                Cell::new_align("time", format::Alignment::CENTER),
+                Cell::new_align(
+                    &format!("{:?} ({})", stat.kind, stat.kind.unit()),
+                    format::Alignment::CENTER,
+                ),
+            ]));
+            print_stat(&mut table, &stat, limit);
+            Some(Ok(table))
+        })
+        .collect()
+}
+
+fn print_stat(table: &mut Table, stat: &fritzapi::DeviceStats, limit: Option<usize>) {
     let now = chrono::Local::now();
-    println!("{:?}", stat.kind);
-
-    match kinds {
-        Some(kinds) if !kinds.contains(&stat.kind) => return,
-        _ => {}
-    }
-
     for values in &stat.values {
         let mut n = 0;
         let mut time = now;
-        println!("grid: {}", values.grid);
         for val in &values.values {
-            println!(
-                "{time} {val}{unit}",
-                time = time.format("%y-%m-%d %H:%M:%S"),
-                val = val,
-                unit = stat.kind.unit()
-            );
+            table.add_row(Row::new(vec![
+                Cell::new(&time.format("%Y-%m-%d %H:%M:%S").to_string()),
+                Cell::new_align(&format!("{:.1}", val), format::Alignment::RIGHT),
+            ]));
             time = time - chrono::Duration::seconds(values.grid as i64);
             n += 1;
             match limit {

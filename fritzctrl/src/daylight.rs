@@ -27,6 +27,7 @@ impl Location {
         }
     }
 
+    #[allow(dead_code)]
     pub fn bernau() -> Self {
         Self {
             latitude: 52.671,
