@@ -1,8 +1,6 @@
 use chrono::prelude::*;
 use chrono::Datelike;
 
-/// <https://developer.apple.com/documentation/corelocation/cllocation>
-/// <https://developer.apple.com/documentation/corelocation/cllocationcoordinate2d>
 pub struct Location {
     /// The latitude in degrees.
     pub latitude: f64,
@@ -28,10 +26,10 @@ impl Location {
     }
 
     #[allow(dead_code)]
-    pub fn bernau() -> Self {
+    pub fn berlin() -> Self {
         Self {
-            latitude: 52.671,
-            longitude: 13.555,
+            latitude: 52.520,
+            longitude: 13.4050,
             altitude: 61,
             h_accuracy: 0,
             v_accuracy: 0,
@@ -39,40 +37,8 @@ impl Location {
     }
 }
 
-#[cfg(target_os = "macos")]
-impl From<corelocation_rs::Location> for Location {
-    fn from(loc: corelocation_rs::Location) -> Self {
-        let corelocation_rs::Location {
-            latitude,
-            longitude,
-            altitude,
-            h_accuracy,
-            v_accuracy,
-        } = loc;
-        Location {
-            latitude,
-            longitude,
-            altitude,
-            h_accuracy,
-            v_accuracy,
-        }
-    }
-}
-
-#[cfg(target_os = "macos")]
 pub fn default_location() -> anyhow::Result<Location> {
-    use corelocation_rs::Locator;
-    let loc = corelocation_rs::Location::get()?;
-    println!(
-        "using device location ({:.3}, {:.3})",
-        loc.latitude, loc.longitude
-    );
-    Ok(loc.into())
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn default_location() -> anyhow::Result<Location> {
-    Ok(Location::bernau())
+    Ok(Location::berlin())
 }
 
 pub fn print_daylight_times(
