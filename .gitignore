@@ -1,3 +1,7 @@
 /target
 fritzctrl/target
 fritzapi/target
+/scripts
+/data
+.env
+DEV.org
