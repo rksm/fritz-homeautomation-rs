@@ -1,12 +1,20 @@
+//! Small Rust project to control [FRITZ!DECT](https://avm.de/produkte/fritzdect/) outlets (and also query and trigger AVMs home automation features).
+//!
+//! Useful for scheduling your Christmas lights!
+//!
+//! Uses the [fritz HTTP API](https://avm.de/fileadmin/user_upload/Global/Service/Schnittstellen/AHA-HTTP-Interface.pdf).
+//!
+//! You need your AVM router username and password.
+
 use clap::{App, Arg, ArgMatches};
-use log::info;
+use std::io::Read;
 use std::process::exit;
 
-mod config;
 mod daylight;
 mod list;
 mod parser;
 mod schedule;
+mod switch;
 
 fn daylight(args: &ArgMatches) {
     // get date arguments
@@ -50,59 +58,26 @@ fn daylight(args: &ArgMatches) {
     daylight::print_daylight_times(location, from_date, to_date, shift_from, shift_to);
 }
 
-fn switch(args: &ArgMatches) -> anyhow::Result<()> {
-    let user = args.value_of("user").unwrap();
-    let password = args.value_of("password").unwrap();
-    let ain = args.value_of("device").unwrap();
-    let toggle = args.is_present("toggle");
-    let on = args.is_present("on");
-    let off = args.is_present("off");
-
-    let sid = fritzapi::get_sid(&user, &password)?;
-    let devices: Vec<_> = fritzapi::list_devices(&sid)?;
-
-    let mut device = match devices.into_iter().find(|dev| dev.id() == ain) {
-        None => {
-            return Err(anyhow::anyhow!("Cannot find device with ain {:?}", ain));
-        }
-        Some(device) => device,
-    };
-
-    if toggle {
-        device.toggle(&sid)?;
-    } else if on {
-        device.turn_on(&sid)?;
-    } else if off {
-        device.turn_off(&sid)?;
-    }
-
-    Ok(())
-}
-
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 fn main() {
     env_logger::init();
 
-    let c = config::EnvConfig::new().expect("constructing config");
+    dotenv::dotenv().ok();
 
-    let mut user = Arg::with_name("user")
+    let user = Arg::with_name("user")
         .long("user")
         .short("u")
         .takes_value(true)
-        .required(true);
-    if let Some(u) = &c.user {
-        user = user.default_value(u)
-    };
+        .required(true)
+        .env("FRITZ_USER");
 
-    let mut password = Arg::with_name("password")
+    let password = Arg::with_name("password")
         .long("password")
         .short("p")
         .takes_value(true)
-        .required(true);
-    if let Some(p) = &c.user {
-        password = user.default_value(p)
-    };
+        .required(true)
+        .env("FRITZ_PASSWORD");
 
     let device = Arg::with_name("device")
         .long("device")
@@ -134,7 +109,7 @@ fn main() {
         .subcommand(
             App::new("switch")
                 .arg(user.clone())
-                .arg(password)
+                .arg(password.clone())
                 .arg(device.clone().required(true))
                 .arg(Arg::with_name("toggle").long("toggle"))
                 .arg(Arg::with_name("on").long("on"))
@@ -171,6 +146,12 @@ fn main() {
                      .long("shift-to")
                      .takes_value(true)
                      .validator(parser::valid_shift))
+        )
+        .subcommand(
+            App::new("schedule")
+                .about("Reads newline separated commands from stdin and then runs until the last command is done.")
+                .arg(user.clone())
+                .arg(password.clone())
         );
 
     let args = app.clone().get_matches();
@@ -195,10 +176,24 @@ fn main() {
             }
         }
         "switch" => {
-            if let Err(err) = switch(args.subcommand_matches("switch").unwrap()) {
+            if let Err(err) = switch::switch(args.subcommand_matches("switch").unwrap()) {
                 println!("{}", err);
                 exit(2);
             }
+        }
+        "schedule" => {
+            let args = args.subcommand_matches("schedule").unwrap();
+            let user = args.value_of("user").unwrap();
+            let password = args.value_of("password").unwrap();
+            let stdin = std::io::stdin();
+            let mut input = String::new();
+            stdin.lock().read_to_string(&mut input).unwrap();
+            if let Err(err) = schedule::Schedule::from_string(input)
+                .and_then(|mut schedule| schedule.start(user, password))
+            {
+                eprintln!("Error running schedule: {}", err);
+                exit(3);
+            };
         }
         _ => {
             app.print_help().unwrap();

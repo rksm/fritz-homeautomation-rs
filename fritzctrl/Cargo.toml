@@ -20,9 +20,7 @@ timer = "0.2.0"
 parse_duration = "2.1.0"
 prettytable-rs = "0.8.0"
 fritzapi = { path = "../fritzapi", version = "0.3.0" }
-config = "0.10.1"
-serde = { version = "1.0.123", features = ["derive"] }
-directories = "3.0.1"
+dotenv = "0.15.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 corelocation-rs = { git = "https://github.com/nthapaliya/corelocation-rs" }

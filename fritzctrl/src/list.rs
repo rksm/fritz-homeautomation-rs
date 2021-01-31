@@ -1,6 +1,7 @@
 use clap::ArgMatches;
 use prettytable::{format, Cell, Row, Table};
 use std::collections::HashSet;
+use log::info;
 
 pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
     let user = args.value_of("user").unwrap();
@@ -41,7 +42,7 @@ pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    println!("found {} devices", devices.len());
+    info!("found {} devices", devices.len());
     print_device_table(&devices);
 
     Ok(())
