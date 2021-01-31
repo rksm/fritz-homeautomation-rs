@@ -8,7 +8,7 @@ description = """
 Library for interfacing with the \"AVM Home Automation\" API
 (https://avm.de/fileadmin/user_upload/Global/Service/Schnittstellen/AHA-HTTP-Interface.pdf).
 """
-keywords = ["avm", "fritz", "homeautomation", "dect", "smarthome", "outlet"]
+keywords = ["avm", "fritz", "homeautomation", "smarthome"]
 
 [dependencies]
 lazy_static = "1.4.0"
