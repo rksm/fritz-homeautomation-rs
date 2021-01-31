@@ -94,6 +94,14 @@ impl AVMDevice {
         }
     }
 
+    pub fn is_on(&self) -> bool {
+        match self {
+            AVMDevice::FritzDect2XX(FritzDect2XX { on, .. }) => *on,
+            // TODO
+            AVMDevice::Other(_) => false,
+        }
+    }
+
     pub fn state(&self) -> &str {
         match self {
             AVMDevice::FritzDect2XX(FritzDect2XX { on: true, .. }) => "on",
