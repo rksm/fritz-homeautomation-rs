@@ -1,3 +1,5 @@
+#+STARTUP: showeverything
+
 * fritz-homeautomation
 
 Small Rust project to control [[https://avm.de/produkte/fritzdect/][FRITZ!DECT]] outlets (and also query and trigger AVMs home automation features).

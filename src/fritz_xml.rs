@@ -46,7 +46,7 @@ pub struct Device {
     pub txbusy: bool,
     pub name: String,
     pub battery: Option<i32>,
-    pub batterylow: bool,
+    pub batterylow: Option<bool>,
     pub switch: Option<Switch>,
     pub simpleonoff: Option<SimpleOnOff>,
     pub powermeter: Option<PowerMeter>,
@@ -176,6 +176,24 @@ pub struct DeviceStats {
     pub stats: Vec<DeviceStatValues>,
 }
 
+impl std::fmt::Display for DeviceStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{:?}", self.kind)?;
+        for stat in &self.stats {
+            writeln!(
+                f,
+                "values: {}",
+                stat.values
+                    .iter()
+                    .map(|val| val.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub struct DeviceStatValues {
     pub values: Vec<f32>,
@@ -204,7 +222,7 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, serde_xml_rs:
                         values: ea
                             .values
                             .split(',')
-                            .map(|val| val.parse::<f32>().unwrap() * multiplier)
+                            .filter_map(|val| val.parse::<f32>().ok().map(|val| val * multiplier))
                             .collect(),
                     })
                     .collect(),

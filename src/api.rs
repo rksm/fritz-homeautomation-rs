@@ -114,6 +114,8 @@ pub fn device_infos(sid: &str) -> anyhow::Result<Vec<Device>> {
 #[derive(Debug)]
 pub struct FritzDect2XX {
     pub identifier: String,
+    pub name: String,
+    pub productname: String,
     pub on: bool,
     pub voltage: f32,
     pub watts: f32,
@@ -128,14 +130,73 @@ pub enum AVMDevice {
     Other(Device),
 }
 
+impl AVMDevice {
+    pub fn id(&self) -> &str {
+        match self {
+            AVMDevice::FritzDect2XX(dev @ FritzDect2XX { .. }) => &dev.identifier,
+            AVMDevice::Other(dev) => &dev.identifier,
+        }
+    }
+
+    pub fn fetch_device_stats(&self, sid: &str) -> anyhow::Result<Vec<DeviceStats>> {
+        let ain = self.id();
+        let xml = request(Commands::GetBasicDeviceStats, sid, Some(ain))?;
+        match parse_device_stats(xml) {
+            Ok(stats) => Ok(stats),
+            Err(err) => Err(anyhow!("[parse_device_stats] error: {}", err)),
+        }
+    }
+
+    pub fn print_info(&self, show_stats: bool, sid: Option<&str>) -> anyhow::Result<()> {
+        match self {
+            AVMDevice::FritzDect2XX(dev @ FritzDect2XX { .. }) => {
+                println!(
+                    "Device identifier={:?} productname={:?} name={:?}",
+                    dev.identifier, dev.productname, dev.name
+                );
+            }
+            AVMDevice::Other(dev) => {
+                println!(
+                    "Unsupported device identifier={:?} productname={:?} name={:?}",
+                    dev.identifier, dev.productname, dev.name
+                );
+            }
+        }
+        if let (true, Some(sid)) = (show_stats, sid) {
+            let stats = self.fetch_device_stats(&sid)?;
+            for ea in stats {
+                println!("{}", ea);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn turn_on(&mut self, sid: &str) -> anyhow::Result<()> {
+        request(Commands::SetSwitchOn, sid, Some(self.id()))?;
+        Ok(())
+    }
+
+    pub fn turn_off(&mut self, sid: &str) -> anyhow::Result<()> {
+        request(Commands::SetSwitchOff, sid, Some(self.id()))?;
+        Ok(())
+    }
+
+    pub fn toggle(&mut self, sid: &str) -> anyhow::Result<()> {
+        request(Commands::SetSwitchToggle, sid, Some(self.id()))?;
+        Ok(())
+    }
+
+}
+
 pub fn device_infos_avm(sid: &str) -> anyhow::Result<Vec<AVMDevice>> {
     let devices = device_infos(sid)?;
     let result: Vec<AVMDevice> = devices
         .into_iter()
         .map(|dev| match &dev {
             Device {
-                productname,
                 identifier,
+                productname,
+                name,
                 switch: Some(Switch { state, .. }),
                 powermeter:
                     Some(PowerMeter {
@@ -148,6 +209,8 @@ pub fn device_infos_avm(sid: &str) -> anyhow::Result<Vec<AVMDevice>> {
                 ..
             } if productname.starts_with("FRITZ!DECT 2") => AVMDevice::FritzDect2XX(FritzDect2XX {
                 identifier: identifier.clone(),
+                productname: productname.clone(),
+                name: name.clone(),
                 on: *state,
                 voltage: *voltage as f32 * 0.001,
                 watts: *power as f32 * 0.001,
@@ -160,31 +223,6 @@ pub fn device_infos_avm(sid: &str) -> anyhow::Result<Vec<AVMDevice>> {
         })
         .collect();
     Ok(result)
-}
-
-pub fn fetch_device_stats(sid: &str, ain: &str) -> anyhow::Result<Vec<DeviceStats>> {
-    let xml = request(Commands::GetBasicDeviceStats, sid, Some(ain))?;
-    match parse_device_stats(xml) {
-        Ok(stats) => Ok(stats),
-        Err(err) => Err(anyhow!("[parse_device_stats] error: {}", err)),
-    }
-}
-
-// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-pub fn turn_on(sid: &str, ain: &str) -> anyhow::Result<()> {
-    request(Commands::SetSwitchOn, sid, Some(ain))?;
-    Ok(())
-}
-
-pub fn turn_off(sid: &str, ain: &str) -> anyhow::Result<()> {
-    request(Commands::SetSwitchOff, sid, Some(ain))?;
-    Ok(())
-}
-
-pub fn toggle(sid: &str, ain: &str) -> anyhow::Result<()> {
-    request(Commands::SetSwitchToggle, sid, Some(ain))?;
-    Ok(())
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

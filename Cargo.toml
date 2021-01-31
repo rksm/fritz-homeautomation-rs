@@ -1,53 +1,32 @@
 [package]
 name = "fritz-homeautomation"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Robert Krahn <robert.krahn@gmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "A utility for controlling AVM Fritz devices using the \"AVM Home Automation\" API (https://avm.de/fileadmin/user_upload/Global/Service/Schnittstellen/AHA-HTTP-Interface.pdf)."
 
 [dependencies]
-serde-xml-rs = "0.4.0"
-serde = {version = "1.0.117", features = ["derive"]}
-reqwest = {version = "0.10.9", features = ["blocking"], default-features = false}
-# reqwest = {version = "0.10.9", features = ["blocking", "native-tls"], default-features = false}
-# reqwest = {version = "0.10.9", features = ["blocking", "rustls-tls"], default-features = false}
-md5 = "0.7.0"
-regex = "1.4.2"
-lazy_static = "1.4.0"
-dotenv = "0.15.0"
-chrono = "0.4.19"
-timer = "0.2.0"
-crossbeam-channel = "0.5.0"
-notify = "4.0.15"
-clap = "2.33.3"
-sunrise = "1.0.0"
-# openssl = { version = "0.10", features = ["vendored"], default-features = false }
 anyhow = "1.0"
+chrono = "0.4.19"
+clap = "2.33.3"
+crossbeam-channel = "0.5.0"
+dotenv = "0.15.0"
+env_logger = "0.8.2"
+lazy_static = "1.4.0"
+log = "0.4.13"
+md5 = "0.7.0"
+notify = "4.0.15"
+regex = "1.4.2"
+serde = {version = "1.0.120", features = ["derive"]}
+serde-xml-rs = "0.4.0"
+sunrise = "1.0.0"
+timer = "0.2.0"
+parse_duration = "2.1.0"
 
+[dependencies.reqwest]
+version = "0.11.0"
+features = ["blocking", "rustls-tls"]
+default-features = false
 
 [target.'cfg(target_os = "macos")'.dependencies]
 corelocation-rs = { git = "https://github.com/nthapaliya/corelocation-rs" }
-
-# [profile.release]
-# lto = true
-# panic = 'abort'
-# opt-level = 'z'
-
-# [patch.crates-io]
-
-# [target.arm-unknown-linux-musleabi]
-# linker = "arm-linux-gnueabihf-ld"
-
-# [target.x86_64-linux-musleabi]
-# linker = "arm-linux-gnueabihf-ld"
-
-# [target.armv7-unknown-linux-musleabihf]
-# linker = "arm-linux-gnueabihf-ld"
-
-
-# [target.armv7-unknown-linux-gnueabihf]
-# linker = "arm-linux-gnueabihf-ld"
-
-# [target.armv7-unknown-linux-c]
-# linker = "arm-linux-gnueabihf-ld"
