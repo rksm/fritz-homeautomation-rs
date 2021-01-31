@@ -35,6 +35,20 @@ fn parse_duration(arg: &str) -> Option<chrono::Duration> {
     }
 }
 
+fn valid_usize(arg: String) -> Result<(), String> {
+    arg.parse::<usize>()
+        .map(|_| ())
+        .map_err(|_| "Not a valid usize number".to_string())
+}
+
+fn parse_kinds(arg: &str) -> anyhow::Result<Vec<fritz::DeviceStatsKind>> {
+    arg.split(',').map(|ea| ea.parse()).collect()
+}
+
+fn valid_kinds(arg: String) -> Result<(), String> {
+    parse_kinds(&arg).map(|_| ()).map_err(|err| err.to_string())
+}
+
 fn daylight(args: &ArgMatches) {
     // get date arguments
     let date = args
@@ -94,8 +108,9 @@ fn create_table() -> Table {
 fn list(args: &ArgMatches) -> anyhow::Result<()> {
     let user = args.value_of("user").unwrap();
     let password = args.value_of("password").unwrap();
-    let ain = args.value_of("ain");
-    let show_stats = args.is_present("stats");
+    let ain = args.value_of("device");
+    let kinds = args.value_of("kinds").map(|kinds| parse_kinds(kinds).unwrap_or_default());
+    let limit = args.value_of("limit").map(|limit| limit.parse().unwrap_or_default());
 
     let sid = fritz::get_sid(&user, &password)?;
     let devices: Vec<_> = fritz::list_devices(&sid)?;
@@ -107,15 +122,11 @@ fn list(args: &ArgMatches) -> anyhow::Result<()> {
             }
             Some(device) => device,
         };
-        device.print_info(show_stats, Some(&sid))?;
+        device.print_info(&sid, kinds, limit)?;
         return Ok(());
     }
 
     println!("found {} devices", devices.len());
-
-    // for device in devices {
-    //     device.print_info(show_stats, Some(&sid))?;
-    // }
 
     let mut table = create_table();
     table.set_titles(Row::new(vec![
@@ -141,7 +152,7 @@ fn list(args: &ArgMatches) -> anyhow::Result<()> {
 fn switch(args: &ArgMatches) -> anyhow::Result<()> {
     let user = args.value_of("user").unwrap();
     let password = args.value_of("password").unwrap();
-    let ain = args.value_of("ain").unwrap();
+    let ain = args.value_of("device").unwrap();
     let toggle = args.is_present("toggle");
     let on = args.is_present("on");
     let off = args.is_present("off");
@@ -182,11 +193,11 @@ fn main() {
         .takes_value(true)
         .required(true);
 
-    let ain = Arg::with_name("ain")
-        .long("ain")
+    let device = Arg::with_name("device")
+        .long("device")
         .takes_value(true)
         .required(true)
-        .help("The device identifier of the device to query / control.");
+        .help("The device identifier (ain) of the device to query / control.");
 
     let mut app = App::new(env!("CARGO_PKG_NAME"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -196,14 +207,24 @@ fn main() {
             App::new("list")
                 .arg(user.clone())
                 .arg(password.clone())
-                .arg(ain.clone().required(false))
-                .arg(Arg::with_name("stats").long("stats")),
+                .arg(device.clone().required(false))
+                .arg(Arg::with_name("limit")
+                     .long("limit")
+                     .short("l")
+                     .takes_value(true)
+                     .validator(valid_usize))
+                .arg(Arg::with_name("kinds")
+                     .long("kinds")
+                     .takes_value(true)
+                     .validator(valid_kinds)
+                     .requires("device")
+                     .help("Comma separated list of the detail categories to show. Possible values: temperature, voltage, power, energy")),
         )
         .subcommand(
             App::new("switch")
                 .arg(user)
                 .arg(password)
-                .arg(ain.clone().required(true))
+                .arg(device.clone().required(true))
                 .arg(Arg::with_name("toggle").long("toggle"))
                 .arg(Arg::with_name("on").long("on"))
                 .arg(Arg::with_name("off").long("off")),

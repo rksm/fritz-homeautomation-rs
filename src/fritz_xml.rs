@@ -68,14 +68,19 @@ pub struct SimpleOnOff {
 
 #[derive(Debug, Deserialize)]
 pub struct PowerMeter {
+    /// Wert in 0,001 V (aktuelle Spannung, wird etwa alle 2 Minuten aktualisiert)
     #[serde(deserialize_with = "deserialize_maybe_u32")]
     pub voltage: u32,
+    /// Wert in 0,001 W (aktuelle Leistung, wird etwa alle 2 Minuten aktualisiert)
     #[serde(deserialize_with = "deserialize_maybe_u32")]
     pub power: u32,
+    /// Wert in 1.0 Wh (absoluter Verbrauch seit Inbetriebnahme)
     #[serde(deserialize_with = "deserialize_maybe_u32")]
     pub energy: u32,
 }
 
+/// celsius: Wert in 0,1 °C, negative und positive Werte möglich
+/// offset: Wert in 0,1 °C, negative und positive Werte möglich
 #[derive(Debug, Deserialize)]
 pub struct Temperature {
     pub celsius: String,
@@ -162,7 +167,27 @@ pub struct RawStats {
     pub values: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum Unit {
+    Celsius,
+    Watt,
+    WattHour,
+    Volt,
+}
+
+impl std::fmt::Display for Unit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Unit::Celsius => write!(f, "°C"),
+            Unit::Watt => write!(f, "W"),
+            Unit::WattHour => write!(f, "Wh"),
+            Unit::Volt => write!(f, "V"),
+        }
+    }
+}
+
+/// Category of measurements that the fritz devices may provide.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum DeviceStatsKind {
     Temperature,
     Voltage,
@@ -170,28 +195,38 @@ pub enum DeviceStatsKind {
     Energy,
 }
 
+impl DeviceStatsKind {
+    pub fn unit(&self) -> Unit {
+        match self {
+            DeviceStatsKind::Temperature => Unit::Celsius,
+            DeviceStatsKind::Voltage => Unit::Volt,
+            DeviceStatsKind::Power => Unit::Watt,
+            DeviceStatsKind::Energy => Unit::WattHour,
+        }
+    }
+}
+
+impl std::str::FromStr for DeviceStatsKind {
+    type Err = anyhow::Error;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input.to_lowercase().as_str() {
+            "temp" | "temperature" | "celsius" | "c" => Ok(DeviceStatsKind::Temperature),
+            "power" | "watt" | "w" => Ok(DeviceStatsKind::Power),
+            "energy" | "wh" => Ok(DeviceStatsKind::Energy),
+            "volt" | "v" | "voltage" => Ok(DeviceStatsKind::Voltage),
+            _ => Err(anyhow::anyhow!(
+                "Cannot convert {:?} to DeviceStatsKind",
+                input
+            )),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct DeviceStats {
     pub kind: DeviceStatsKind,
-    pub stats: Vec<DeviceStatValues>,
-}
-
-impl std::fmt::Display for DeviceStats {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{:?}", self.kind)?;
-        for stat in &self.stats {
-            writeln!(
-                f,
-                "values: {}",
-                stat.values
-                    .iter()
-                    .map(|val| val.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )?;
-        }
-        Ok(())
-    }
+    pub values: Vec<DeviceStatValues>,
 }
 
 #[derive(Debug)]
@@ -214,7 +249,7 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, serde_xml_rs:
         if let Some(raw) = raw {
             result.push(DeviceStats {
                 kind,
-                stats: raw
+                values: raw
                     .stats
                     .into_iter()
                     .map(|ea| DeviceStatValues {
@@ -241,4 +276,45 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, serde_xml_rs:
     process_raw(stats.voltage, DeviceStatsKind::Voltage, 0.001, &mut result);
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_device_stat_kind() {
+        assert_eq!(
+            "temperature".parse::<DeviceStatsKind>().unwrap(),
+            DeviceStatsKind::Temperature
+        );
+        assert_eq!(
+            "celsius".parse::<DeviceStatsKind>().unwrap(),
+            DeviceStatsKind::Temperature
+        );
+        assert_eq!(
+            "c".parse::<DeviceStatsKind>().unwrap(),
+            DeviceStatsKind::Temperature
+        );
+        assert_eq!(
+            "Temperature".parse::<DeviceStatsKind>().unwrap(),
+            DeviceStatsKind::Temperature
+        );
+        assert_eq!(
+            "temp".parse::<DeviceStatsKind>().unwrap(),
+            DeviceStatsKind::Temperature
+        );
+        assert_eq!(
+            "power".parse::<DeviceStatsKind>().unwrap(),
+            DeviceStatsKind::Power
+        );
+        assert_eq!(
+            "energy".parse::<DeviceStatsKind>().unwrap(),
+            DeviceStatsKind::Energy
+        );
+        assert_eq!(
+            "v".parse::<DeviceStatsKind>().unwrap(),
+            DeviceStatsKind::Voltage
+        );
+    }
 }

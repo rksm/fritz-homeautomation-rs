@@ -1,6 +1,7 @@
+use std::collections::HashSet;
+
 use crate::api;
 use crate::fritz_xml as xml;
-use anyhow::anyhow;
 
 mod fritz_dect_2xx;
 pub use fritz_dect_2xx::FritzDect2XX;
@@ -81,15 +82,10 @@ impl AVMDevice {
     }
 
     pub fn fetch_device_stats(&self, sid: &str) -> anyhow::Result<Vec<xml::DeviceStats>> {
-        let ain = self.id();
-        let xml = api::request(api::Commands::GetBasicDeviceStats, sid, Some(ain))?;
-        match xml::parse_device_stats(xml) {
-            Ok(stats) => Ok(stats),
-            Err(err) => Err(anyhow!("[parse_device_stats] error: {}", err)),
-        }
+        api::fetch_device_stats(self.id(), sid)
     }
 
-    pub fn print_info(&self, show_stats: bool, sid: Option<&str>) -> anyhow::Result<()> {
+    pub fn print_info(&self, sid: &str, kinds: Option<Vec<xml::DeviceStatsKind>>, limit: Option<usize>) -> anyhow::Result<()> {
         match self {
             AVMDevice::FritzDect2XX(dev @ FritzDect2XX { .. }) => {
                 println!(
@@ -104,12 +100,13 @@ impl AVMDevice {
                 );
             }
         }
-        if let (true, Some(sid)) = (show_stats, sid) {
-            let stats = self.fetch_device_stats(&sid)?;
-            for ea in stats {
-                println!("{}", ea);
-            }
+
+        let stats = self.fetch_device_stats(&sid)?;
+        let kinds = kinds.map(|val| val.into_iter().collect());
+        for stat in stats {
+            print_stat(&stat, &kinds, limit);
         }
+
         Ok(())
     }
 
@@ -126,5 +123,39 @@ impl AVMDevice {
     pub fn toggle(&mut self, sid: &str) -> anyhow::Result<()> {
         api::request(api::Commands::SetSwitchToggle, sid, Some(self.id()))?;
         Ok(())
+    }
+}
+
+fn print_stat(
+    stat: &xml::DeviceStats,
+    kinds: &Option<HashSet<xml::DeviceStatsKind>>,
+    limit: Option<usize>,
+) {
+    let now = chrono::Local::now();
+    println!("{:?}", stat.kind);
+
+    match kinds {
+        Some(kinds) if !kinds.contains(&stat.kind) => return,
+        _ => {},
+    }
+
+    for values in &stat.values {
+        let mut n = 0;
+        let mut time = now;
+        println!("grid: {}", values.grid);
+        for val in &values.values {
+            println!(
+                "{time} {val}{unit}",
+                time = time.format("%y-%m-%d %H:%M:%S"),
+                val = val,
+                unit = stat.kind.unit()
+            );
+            time = time - chrono::Duration::seconds(values.grid as i64);
+            n += 1;
+            match limit {
+                Some(limit) if n > limit => break,
+                _ => continue,
+            }
+        }
     }
 }
