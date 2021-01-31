@@ -1,5 +1,6 @@
 use clap::{App, Arg, ArgMatches};
-use fritz_homeautomation::{api, daylight};
+use fritz_homeautomation::{self as fritz, daylight};
+use prettytable::{format, Cell, Row, Table};
 use std::process::exit;
 
 fn valid_coord(val: String) -> Result<(), String> {
@@ -17,11 +18,11 @@ fn valid_date(val: String) -> Result<(), String> {
 fn valid_shift(arg: String) -> Result<(), String> {
     parse_duration(&arg)
         .map(|_| ())
-        .ok_or("Not a valid time shift".to_string())
+        .ok_or_else(|| "Not a valid time shift".to_string())
 }
 
 fn parse_duration(arg: &str) -> Option<chrono::Duration> {
-    let sign = arg.starts_with("-");
+    let sign = arg.starts_with('-');
     let input = if sign { &arg[1..] } else { arg };
     match parse_duration::parse(input) {
         Err(err) => {
@@ -76,14 +77,28 @@ fn daylight(args: &ArgMatches) {
     daylight::print_daylight_times(location, from_date, to_date, shift_from, shift_to);
 }
 
+fn create_table() -> Table {
+    let mut table = Table::new();
+    let fmt = format::FormatBuilder::new()
+        .padding(1, 1)
+        .separator(
+            format::LinePosition::Title,
+            format::LineSeparator::new('-', '+', '+', '+'),
+        )
+        .column_separator('|')
+        .build();
+    table.set_format(fmt);
+    table
+}
+
 fn list(args: &ArgMatches) -> anyhow::Result<()> {
     let user = args.value_of("user").unwrap();
     let password = args.value_of("password").unwrap();
     let ain = args.value_of("ain");
     let show_stats = args.is_present("stats");
 
-    let sid = api::get_sid(&user, &password)?;
-    let devices: Vec<_> = api::device_infos_avm(&sid)?;
+    let sid = fritz::get_sid(&user, &password)?;
+    let devices: Vec<_> = fritz::list_devices(&sid)?;
 
     if let Some(ain) = ain {
         let device = match devices.into_iter().find(|dev| dev.id() == ain) {
@@ -98,9 +113,27 @@ fn list(args: &ArgMatches) -> anyhow::Result<()> {
 
     println!("found {} devices", devices.len());
 
+    // for device in devices {
+    //     device.print_info(show_stats, Some(&sid))?;
+    // }
+
+    let mut table = create_table();
+    table.set_titles(Row::new(vec![
+        Cell::new_align("id", format::Alignment::CENTER),
+        Cell::new_align("product", format::Alignment::CENTER),
+        Cell::new_align("name", format::Alignment::CENTER),
+        Cell::new_align("state", format::Alignment::CENTER),
+    ]));
+
     for device in devices {
-        device.print_info(show_stats, Some(&sid))?;
+        table.add_row(Row::new(vec![
+            Cell::new(device.id()),
+            Cell::new(device.productname()),
+            Cell::new(device.name()),
+            Cell::new(device.state()),
+        ]));
     }
+    table.printstd();
 
     Ok(())
 }
@@ -113,8 +146,8 @@ fn switch(args: &ArgMatches) -> anyhow::Result<()> {
     let on = args.is_present("on");
     let off = args.is_present("off");
 
-    let sid = api::get_sid(&user, &password)?;
-    let devices: Vec<_> = api::device_infos_avm(&sid)?;
+    let sid = fritz::get_sid(&user, &password)?;
+    let devices: Vec<_> = fritz::list_devices(&sid)?;
 
     let mut device = match devices.into_iter().find(|dev| dev.id() == ain) {
         None => {

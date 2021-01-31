@@ -30,6 +30,8 @@ fn request_response(password: &str, challenge: &str) -> String {
 
 const DEFAULT_SID: &str = "0000000000000000";
 
+/// Requests a temporary token (session id = sid) from the fritz box using user
+/// name and password.
 pub fn get_sid(user: &str, password: &str) -> anyhow::Result<String> {
     let res: Response = GET("http://fritz.box/login_sid.lua")?
         .error_for_status()
@@ -56,7 +58,7 @@ pub fn get_sid(user: &str, password: &str) -> anyhow::Result<String> {
     Ok(info.sid)
 }
 
-enum Commands {
+pub(crate) enum Commands {
     GetDeviceListInfos,
     GetBasicDeviceStats,
     // GetSwitchPower,
@@ -68,7 +70,8 @@ enum Commands {
     SetSwitchToggle,
 }
 
-fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> anyhow::Result<String> {
+/// Sends raw HTTP requests to the fritz box.
+pub(crate) fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> anyhow::Result<String> {
     use Commands::*;
     let cmd = match cmd {
         GetDeviceListInfos => "getdevicelistinfos",
@@ -102,8 +105,8 @@ fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> anyhow::Result<String
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-/// Parses raw [`Device`]s.
-pub fn device_infos(sid: &str) -> anyhow::Result<Vec<Device>> {
+/// Requests & parses raw [`Device`]s.
+pub(crate) fn device_infos(sid: &str) -> anyhow::Result<Vec<Device>> {
     let xml = request(Commands::GetDeviceListInfos, &sid, None)?;
     match parse_device_infos(xml) {
         Ok(infos) => Ok(infos),
@@ -111,118 +114,13 @@ pub fn device_infos(sid: &str) -> anyhow::Result<Vec<Device>> {
     }
 }
 
-#[derive(Debug)]
-pub struct FritzDect2XX {
-    pub identifier: String,
-    pub name: String,
-    pub productname: String,
-    pub on: bool,
-    pub voltage: f32,
-    pub watts: f32,
-    pub energy_in_watt_h: u32,
-    pub celsius: f32,
-    // raw: Device,
-}
-
-#[derive(Debug)]
-pub enum AVMDevice {
-    FritzDect2XX(FritzDect2XX),
-    Other(Device),
-}
-
-impl AVMDevice {
-    pub fn id(&self) -> &str {
-        match self {
-            AVMDevice::FritzDect2XX(dev @ FritzDect2XX { .. }) => &dev.identifier,
-            AVMDevice::Other(dev) => &dev.identifier,
-        }
+/// Requests & parses raw [`DeviceStats`]s.
+pub(crate) fn fetch_device_stats(ain: &str, sid: &str) -> anyhow::Result<Vec<DeviceStats>> {
+    let xml = request(Commands::GetBasicDeviceStats, sid, Some(ain))?;
+    match parse_device_stats(xml) {
+        Ok(stats) => Ok(stats),
+        Err(err) => Err(anyhow!("[parse_device_stats] error: {}", err)),
     }
-
-    pub fn fetch_device_stats(&self, sid: &str) -> anyhow::Result<Vec<DeviceStats>> {
-        let ain = self.id();
-        let xml = request(Commands::GetBasicDeviceStats, sid, Some(ain))?;
-        match parse_device_stats(xml) {
-            Ok(stats) => Ok(stats),
-            Err(err) => Err(anyhow!("[parse_device_stats] error: {}", err)),
-        }
-    }
-
-    pub fn print_info(&self, show_stats: bool, sid: Option<&str>) -> anyhow::Result<()> {
-        match self {
-            AVMDevice::FritzDect2XX(dev @ FritzDect2XX { .. }) => {
-                println!(
-                    "Device identifier={:?} productname={:?} name={:?}",
-                    dev.identifier, dev.productname, dev.name
-                );
-            }
-            AVMDevice::Other(dev) => {
-                println!(
-                    "Unsupported device identifier={:?} productname={:?} name={:?}",
-                    dev.identifier, dev.productname, dev.name
-                );
-            }
-        }
-        if let (true, Some(sid)) = (show_stats, sid) {
-            let stats = self.fetch_device_stats(&sid)?;
-            for ea in stats {
-                println!("{}", ea);
-            }
-        }
-        Ok(())
-    }
-
-    pub fn turn_on(&mut self, sid: &str) -> anyhow::Result<()> {
-        request(Commands::SetSwitchOn, sid, Some(self.id()))?;
-        Ok(())
-    }
-
-    pub fn turn_off(&mut self, sid: &str) -> anyhow::Result<()> {
-        request(Commands::SetSwitchOff, sid, Some(self.id()))?;
-        Ok(())
-    }
-
-    pub fn toggle(&mut self, sid: &str) -> anyhow::Result<()> {
-        request(Commands::SetSwitchToggle, sid, Some(self.id()))?;
-        Ok(())
-    }
-
-}
-
-pub fn device_infos_avm(sid: &str) -> anyhow::Result<Vec<AVMDevice>> {
-    let devices = device_infos(sid)?;
-    let result: Vec<AVMDevice> = devices
-        .into_iter()
-        .map(|dev| match &dev {
-            Device {
-                identifier,
-                productname,
-                name,
-                switch: Some(Switch { state, .. }),
-                powermeter:
-                    Some(PowerMeter {
-                        energy,
-                        power,
-                        voltage,
-                        ..
-                    }),
-                temperature: Some(Temperature { celsius, .. }),
-                ..
-            } if productname.starts_with("FRITZ!DECT 2") => AVMDevice::FritzDect2XX(FritzDect2XX {
-                identifier: identifier.clone(),
-                productname: productname.clone(),
-                name: name.clone(),
-                on: *state,
-                voltage: *voltage as f32 * 0.001,
-                watts: *power as f32 * 0.001,
-                energy_in_watt_h: *energy,
-                celsius: celsius.parse::<f32>().unwrap_or_default() * 0.1,
-                // raw: dev,
-            }),
-
-            _ => AVMDevice::Other(dev),
-        })
-        .collect();
-    Ok(result)
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

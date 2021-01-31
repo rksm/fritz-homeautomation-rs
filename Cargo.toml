@@ -3,7 +3,10 @@ name = "fritz-homeautomation"
 version = "0.2.0"
 authors = ["Robert Krahn <robert.krahn@gmail.com>"]
 edition = "2018"
-description = "A utility for controlling AVM Fritz devices using the \"AVM Home Automation\" API (https://avm.de/fileadmin/user_upload/Global/Service/Schnittstellen/AHA-HTTP-Interface.pdf)."
+description = """
+A utility for controlling AVM Fritz devices using the \"AVM Home Automation\" API
+(https://avm.de/fileadmin/user_upload/Global/Service/Schnittstellen/AHA-HTTP-Interface.pdf).
+"""
 
 [dependencies]
 anyhow = "1.0"
@@ -22,6 +25,8 @@ serde-xml-rs = "0.4.0"
 sunrise = "1.0.0"
 timer = "0.2.0"
 parse_duration = "2.1.0"
+termion = "1.5.6"
+prettytable-rs = "0.8.0"
 
 [dependencies.reqwest]
 version = "0.11.0"
