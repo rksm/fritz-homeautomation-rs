@@ -1,6 +1,8 @@
 use clap::{App, Arg, ArgMatches};
+use log::info;
 use std::process::exit;
 
+mod config;
 mod daylight;
 mod list;
 mod parser;
@@ -82,17 +84,25 @@ fn switch(args: &ArgMatches) -> anyhow::Result<()> {
 fn main() {
     env_logger::init();
 
-    let user = Arg::with_name("user")
+    let c = config::EnvConfig::new().expect("constructing config");
+
+    let mut user = Arg::with_name("user")
         .long("user")
         .short("u")
         .takes_value(true)
         .required(true);
+    if let Some(u) = &c.user {
+        user = user.default_value(u)
+    };
 
-    let password = Arg::with_name("password")
+    let mut password = Arg::with_name("password")
         .long("password")
         .short("p")
         .takes_value(true)
         .required(true);
+    if let Some(p) = &c.user {
+        password = user.default_value(p)
+    };
 
     let device = Arg::with_name("device")
         .long("device")
@@ -123,7 +133,7 @@ fn main() {
         )
         .subcommand(
             App::new("switch")
-                .arg(user)
+                .arg(user.clone())
                 .arg(password)
                 .arg(device.clone().required(true))
                 .arg(Arg::with_name("toggle").long("toggle"))
@@ -132,7 +142,7 @@ fn main() {
         )
         .subcommand(
             App::new("daylight")
-                .help("Prints the daylight times at a specific location. On MacOS will try to use the corelocation API if no latitude/longitude is specified.")
+                .about("Prints the daylight times at a specific location. On MacOS will try to use the corelocation API if no latitude/longitude is specified.")
                 .arg(Arg::with_name("latitude")
                      .long("latitude")
                      .takes_value(true)
