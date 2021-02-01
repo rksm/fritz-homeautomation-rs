@@ -8,6 +8,7 @@ description = """
 Command line utility for controlling AVM Fritz devices
 """
 keywords = ["avm", "fritz", "homeautomation", "smarthome"]
+documentation = "https://docs.rs/fritzctrl"
 
 [dependencies]
 anyhow = "1.0"

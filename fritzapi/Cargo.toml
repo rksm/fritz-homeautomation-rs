@@ -8,6 +8,8 @@ description = """
 Library for interfacing with the \"AVM Home Automation\" API
 """
 keywords = ["avm", "fritz", "homeautomation", "smarthome"]
+repository = "https://github.com/rksm/fritz-homeautomation-rs"
+documentation = "https://docs.rs/fritzapi"
 
 [dependencies]
 lazy_static = "1.4.0"
