@@ -28,7 +28,7 @@ pub fn switch(args: &ArgMatches) -> anyhow::Result<()> {
     let action = if on {
         SwitchAction::On
     } else if off {
-        SwitchAction::On
+        SwitchAction::Off
     } else if toggle {
         SwitchAction::Toggle
     } else {
@@ -39,7 +39,7 @@ pub fn switch(args: &ArgMatches) -> anyhow::Result<()> {
 }
 
 pub fn run(user: &str, password: &str, ain: &str, action: SwitchAction) -> anyhow::Result<()> {
-    let sid = fritzapi::get_sid(&user, &password)?;
+    let sid = fritzapi::get_sid(user, password)?;
     let devices: Vec<_> = fritzapi::list_devices(&sid)?;
 
     let mut device = match devices.into_iter().find(|dev| dev.id() == ain) {
