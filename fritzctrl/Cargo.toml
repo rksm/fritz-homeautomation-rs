@@ -2,7 +2,7 @@
 name = "fritzctrl"
 version = "0.3.5"
 authors = ["Robert Krahn <robert.krahn@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 description = """
 Command line utility for controlling AVM Fritz devices
@@ -11,15 +11,15 @@ keywords = ["avm", "fritz", "homeautomation", "smarthome"]
 repository = "https://github.com/rksm/fritz-homeautomation-rs"
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1.0.47"
 chrono = "0.4.19"
 clap = "2.33.3"
 dotenv = "0.15.0"
-env_logger = "0.8.2"
+env_logger = "^0.9"
 lazy_static = "1.4.0"
 log = "0.4.13"
-regex = "1.4.2"
+regex = "1.5.4"
 sunrise = "1.0.0"
-parse_duration = "2.1.0"
+parse_duration = "2.1.1"
 prettytable-rs = "0.8.0"
-fritzapi = { path = "../fritzapi", version = "0.3" }
+fritzapi = { path = "../fritzapi" }
