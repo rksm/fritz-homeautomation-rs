@@ -5,6 +5,9 @@ pub enum FritzError {
     #[error("data store disconnected")]
     Ap(#[from] reqwest::Error),
 
+    #[error("Request forbidden. Are you logged in, is the sid correct and recent?")]
+    Forbidden,
+
     #[error("API request failed: `{0}")]
     ApiRequest(String),
 

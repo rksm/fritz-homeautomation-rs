@@ -1,11 +1,13 @@
-use crate::api;
 use crate::error::Result;
 use crate::fritz_xml as xml;
+use crate::FritzClient;
 
 mod fritz_dect_2xx;
 pub use fritz_dect_2xx::FritzDect2XX;
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
 pub enum AVMDevice {
     FritzDect2XX(FritzDect2XX),
     Other(xml::Device),
@@ -34,43 +36,35 @@ impl std::fmt::Display for AVMDevice {
 }
 
 impl AVMDevice {
-    pub fn list(sid: &str) -> Result<Vec<AVMDevice>> {
-        let devices = api::device_infos(sid)?;
-        let result: Vec<AVMDevice> = devices
-            .into_iter()
-            .map(|dev| match &dev {
-                xml::Device {
-                    identifier,
-                    productname,
-                    name,
-                    switch: Some(xml::Switch { state, .. }),
-                    powermeter:
-                        Some(xml::PowerMeter {
-                            energy,
-                            power,
-                            voltage,
-                            ..
-                        }),
-                    temperature: Some(xml::Temperature { celsius, .. }),
-                    ..
-                } if productname.starts_with("FRITZ!DECT 2") => {
-                    AVMDevice::FritzDect2XX(FritzDect2XX {
-                        identifier: identifier.clone(),
-                        productname: productname.clone(),
-                        name: name.clone(),
-                        on: *state,
-                        voltage: *voltage as f32 * 0.001,
-                        watts: *power as f32 * 0.001,
-                        energy_in_watt_h: *energy,
-                        celsius: celsius.parse::<f32>().unwrap_or_default() * 0.1,
-                        // raw: dev,
-                    })
-                }
+    pub fn from_xml_device(device: xml::Device) -> Self {
+        match device {
+            xml::Device {
+                identifier,
+                productname,
+                name,
+                switch: Some(xml::Switch { state, .. }),
+                powermeter:
+                    Some(xml::PowerMeter {
+                        energy,
+                        power,
+                        voltage,
+                        ..
+                    }),
+                temperature: Some(xml::Temperature { celsius, .. }),
+                ..
+            } if productname.starts_with("FRITZ!DECT 2") => AVMDevice::FritzDect2XX(FritzDect2XX {
+                identifier,
+                productname,
+                name,
+                on: state,
+                voltage: voltage as f32 * 0.001,
+                watts: power as f32 * 0.001,
+                energy_in_watt_h: energy,
+                celsius: celsius.parse::<f32>().unwrap_or_default() * 0.1,
+            }),
 
-                _ => AVMDevice::Other(dev),
-            })
-            .collect();
-        Ok(result)
+            _ => AVMDevice::Other(device),
+        }
     }
 
     pub fn id(&self) -> &str {
@@ -110,22 +104,19 @@ impl AVMDevice {
         }
     }
 
-    pub fn fetch_device_stats(&self, sid: &str) -> Result<Vec<xml::DeviceStats>> {
-        api::fetch_device_stats(self.id(), sid)
+    pub fn fetch_device_stats(&self, client: &mut FritzClient) -> Result<Vec<xml::DeviceStats>> {
+        client.device_stats(self.id())
     }
 
-    pub fn turn_on(&mut self, sid: &str) -> Result<()> {
-        api::request(api::Commands::SetSwitchOn, sid, Some(self.id()))?;
-        Ok(())
+    pub fn turn_on(&mut self, client: &mut FritzClient) -> Result<()> {
+        client.turn_on(self.id())
     }
 
-    pub fn turn_off(&mut self, sid: &str) -> Result<()> {
-        api::request(api::Commands::SetSwitchOff, sid, Some(self.id()))?;
-        Ok(())
+    pub fn turn_off(&mut self, client: &mut FritzClient) -> Result<()> {
+        client.turn_off(self.id())
     }
 
-    pub fn toggle(&mut self, sid: &str) -> Result<()> {
-        api::request(api::Commands::SetSwitchToggle, sid, Some(self.id()))?;
-        Ok(())
+    pub fn toggle(&mut self, client: &mut FritzClient) -> Result<()> {
+        client.toggle(self.id())
     }
 }

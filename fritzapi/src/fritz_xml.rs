@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::error::{FritzError, Result};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_xml_rs::from_reader;
 
 // response of login_sid.lua
@@ -30,12 +30,20 @@ pub struct SessionInfo {
 // response of getdevicelistinfos
 
 #[derive(Debug, Deserialize)]
-pub struct DeviceList {
-    #[serde(alias = "device")]
-    pub devices: Vec<Device>,
+#[serde(rename_all = "camelCase")]
+pub enum DeviceOrGroup {
+    Device(Device),
+    Group(DeviceGroup),
 }
 
 #[derive(Debug, Deserialize)]
+pub struct DeviceList {
+    #[serde(rename = "$value")]
+    pub list: Vec<DeviceOrGroup>,
+    // pub devices: Vec<Device>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Device {
     pub identifier: String,
     pub id: String,
@@ -54,7 +62,24 @@ pub struct Device {
     pub temperature: Option<Temperature>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DeviceGroup {
+    pub synchronized: bool,
+    pub identifier: String,
+    pub id: String,
+    pub functionbitmask: String,
+    pub fwversion: String,
+    pub manufacturer: String,
+    pub present: bool,
+    pub txbusy: bool,
+    pub name: String,
+    pub switch: Option<Switch>,
+    pub simpleonoff: Option<SimpleOnOff>,
+    pub powermeter: Option<PowerMeter>,
+    // groupinfo: ... // TODO
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Switch {
     pub state: bool,
     pub lock: bool,
@@ -62,12 +87,12 @@ pub struct Switch {
     pub mode: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SimpleOnOff {
     pub state: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PowerMeter {
     /// Wert in 0,001 V (aktuelle Spannung, wird etwa alle 2 Minuten aktualisiert)
     #[serde(deserialize_with = "deserialize_maybe_u32")]
@@ -82,7 +107,7 @@ pub struct PowerMeter {
 
 /// celsius: Wert in 0,1 °C, negative und positive Werte möglich
 /// offset: Wert in 0,1 °C, negative und positive Werte möglich
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Temperature {
     pub celsius: String,
     pub offset: String,
@@ -100,9 +125,20 @@ pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
 /// Parses raw [`Device`]s.
 pub fn parse_device_infos(xml: String) -> Result<Vec<Device>> {
     from_reader::<&[u8], DeviceList>(xml.as_bytes())
-        .map(|list| list.devices)
+        .map(|list| {
+            list.list
+                .into_iter()
+                .filter_map(|item| -> Option<_> {
+                    match item {
+                        DeviceOrGroup::Device(device) => Some(device),
+                        // 2022-03-12 ignore groups for now
+                        DeviceOrGroup::Group(_) => None,
+                    }
+                })
+                .collect()
+        })
         .map_err(|err| {
-            eprintln!("cannot parse device infos");
+            eprintln!("cannot parse device infos: {err}");
             err.into()
         })
 }
@@ -204,7 +240,22 @@ pub enum DeviceStatsKind {
     Energy,
 }
 
+impl std::fmt::Display for DeviceStatsKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.name(), self.unit())
+    }
+}
+
 impl DeviceStatsKind {
+    pub fn name(&self) -> &'static str {
+        match self {
+            DeviceStatsKind::Temperature => "temperature",
+            DeviceStatsKind::Voltage => "voltage",
+            DeviceStatsKind::Power => "power",
+            DeviceStatsKind::Energy => "energy",
+        }
+    }
+
     pub fn unit(&self) -> Unit {
         match self {
             DeviceStatsKind::Temperature => Unit::Celsius,
@@ -244,7 +295,7 @@ pub struct DeviceStatValues {
     pub grid: usize,
 }
 
-pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, > {
+pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>> {
     let stats: RawDeviceStats = from_reader(xml.as_bytes())?;
 
     let mut result: Vec<DeviceStats> = Vec::new();
@@ -266,7 +317,11 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, > {
                         values: ea
                             .values
                             .split(',')
-                            .filter_map(|val| val.parse::<f32>().ok().map(|val| (val * multiplier).round()))
+                            .filter_map(|val| {
+                                val.parse::<f32>()
+                                    .ok()
+                                    .map(|val| (val * multiplier).round())
+                            })
                             .collect(),
                     })
                     .collect(),
@@ -281,7 +336,7 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, > {
         &mut result,
     );
     process_raw(stats.energy, DeviceStatsKind::Energy, 1.0, &mut result);
-    process_raw(stats.power, DeviceStatsKind::Power, 0.001, &mut result);
+    process_raw(stats.power, DeviceStatsKind::Power, 0.01, &mut result);
     process_raw(stats.voltage, DeviceStatsKind::Voltage, 0.001, &mut result);
 
     Ok(result)
@@ -343,5 +398,297 @@ mod tests {
             "v".parse::<DeviceStatsKind>().unwrap(),
             DeviceStatsKind::Voltage
         );
+    }
+
+    #[test]
+    fn parse_devices() -> Result<()> {
+        let xml = r##"
+<devicelist version="1" fwversion="7.21">
+  <device identifier="11630 0069103" id="16" functionbitmask="35712" fwversion="04.16" manufacturer="AVM" productname="FRITZ!DECT 200">
+    <present>1
+    </present>
+    <txbusy>0
+    </txbusy>
+    <name>FRITZ!DECT 200 Laufband Seite
+    </name>
+    <switch>
+      <state>1
+      </state>
+      <mode>manuell
+      </mode>
+      <lock>0
+      </lock>
+      <devicelock>0
+      </devicelock>
+    </switch>
+    <simpleonoff>
+      <state>1
+      </state>
+    </simpleonoff>
+    <powermeter>
+      <voltage>235330
+      </voltage>
+      <power>18450
+      </power>
+      <energy>1060474
+      </energy>
+    </powermeter>
+    <temperature>
+      <celsius>210
+      </celsius>
+      <offset>0
+      </offset>
+    </temperature>
+  </device>
+  <group synchronized="0" identifier="grp424E2B-3D5C11C33" id="900" functionbitmask="37504" fwversion="1.0" manufacturer="AVM" productname="">
+    <present>1
+    </present>
+    <txbusy>0
+    </txbusy>
+    <name>Alles in Bernau
+    </name>
+    <switch>
+      <state>1
+      </state>
+      <mode>manuell
+      </mode>
+      <lock>0
+      </lock>
+      <devicelock>0
+      </devicelock>
+    </switch>
+    <simpleonoff>
+      <state>1
+      </state>
+    </simpleonoff>
+    <powermeter>
+      <voltage>235107
+      </voltage>
+      <power>67780
+      </power>
+      <energy>2431027
+      </energy>
+    </powermeter>
+    <groupinfo>
+      <masterdeviceid>0
+      </masterdeviceid>
+      <members>16,17,18,20,22
+      </members>
+    </groupinfo>
+  </group>
+  <device identifier="11657 0272633" id="17" functionbitmask="35712" fwversion="04.17" manufacturer="AVM" productname="FRITZ!DECT 210">
+    <present>1
+    </present>
+    <txbusy>0
+    </txbusy>
+    <name>FRITZ!DECT 210 draußen
+    </name>
+    <switch>
+      <state>1
+      </state>
+      <mode>manuell
+      </mode>
+      <lock>0
+      </lock>
+      <devicelock>0
+      </devicelock>
+    </switch>
+    <simpleonoff>
+      <state>1
+      </state>
+    </simpleonoff>
+    <powermeter>
+      <voltage>235313
+      </voltage>
+      <power>0
+      </power>
+      <energy>323710
+      </energy>
+    </powermeter>
+    <temperature>
+      <celsius>80
+      </celsius>
+      <offset>0
+      </offset>
+    </temperature>
+  </device>
+  <device identifier="11630 0128064" id="18" functionbitmask="35712" fwversion="04.16" manufacturer="AVM" productname="FRITZ!DECT 200">
+    <present>1
+    </present>
+    <txbusy>0
+    </txbusy>
+    <name>FRITZ!DECT 200 Schreibtisch
+    </name>
+    <switch>
+      <state>1
+      </state>
+      <mode>manuell
+      </mode>
+      <lock>0
+      </lock>
+      <devicelock>0
+      </devicelock>
+    </switch>
+    <simpleonoff>
+      <state>1
+      </state>
+    </simpleonoff>
+    <powermeter>
+      <voltage>235200
+      </voltage>
+      <power>4070
+      </power>
+      <energy>812673
+      </energy>
+    </powermeter>
+    <temperature>
+      <celsius>180
+      </celsius>
+      <offset>0
+      </offset>
+    </temperature>
+  </device>
+  <device identifier="09995 0335100" id="19" functionbitmask="320" fwversion="04.94" manufacturer="AVM" productname="FRITZ!DECT 301">
+    <present>1
+    </present>
+    <txbusy>0
+    </txbusy>
+    <name>FRITZ!DECT 301 #4
+    </name>
+    <battery>1
+    </battery>
+    <batterylow>1
+    </batterylow>
+    <temperature>
+      <celsius>195
+      </celsius>
+      <offset>0
+      </offset>
+    </temperature>
+    <hkr>
+      <tist>48
+      </tist>
+      <tsoll>40
+      </tsoll>
+      <absenk>34
+      </absenk>
+      <komfort>40
+      </komfort>
+      <lock>0
+      </lock>
+      <devicelock>0
+      </devicelock>
+      <errorcode>0
+      </errorcode>
+      <windowopenactiv>0
+      </windowopenactiv>
+      <windowopenactiveendtime>0
+      </windowopenactiveendtime>
+      <boostactive>0
+      </boostactive>
+      <boostactiveendtime>0
+      </boostactiveendtime>
+      <batterylow>1
+      </batterylow>
+      <battery>1
+      </battery>
+      <nextchange>
+        <endperiod>1647134100
+        </endperiod>
+        <tchange>34
+        </tchange>
+      </nextchange>
+      <summeractive>0
+      </summeractive>
+      <holidayactive>0
+      </holidayactive>
+    </hkr>
+  </device>
+  <device identifier="11630 0123723" id="20" functionbitmask="35712" fwversion="04.16" manufacturer="AVM" productname="FRITZ!DECT 200">
+    <present>1
+    </present>
+    <txbusy>0
+    </txbusy>
+    <name>FRITZ!DECT 200 Laufband hinten
+    </name>
+    <switch>
+      <state>1
+      </state>
+      <mode>manuell
+      </mode>
+      <lock>0
+      </lock>
+      <devicelock>0
+      </devicelock>
+    </switch>
+    <simpleonoff>
+      <state>1
+      </state>
+    </simpleonoff>
+    <powermeter>
+      <voltage>234877
+      </voltage>
+      <power>4570
+      </power>
+      <energy>43714
+      </energy>
+    </powermeter>
+    <temperature>
+      <celsius>195
+      </celsius>
+      <offset>0
+      </offset>
+    </temperature>
+  </device>
+  <device identifier="11630 0266726" id="22" functionbitmask="35712" fwversion="04.16" manufacturer="AVM" productname="FRITZ!DECT 200">
+    <present>1
+    </present>
+    <txbusy>0
+    </txbusy>
+    <name>FRITZ!DECT 200 Router
+    </name>
+    <switch>
+      <state>1
+      </state>
+      <mode>manuell
+      </mode>
+      <lock>0
+      </lock>
+      <devicelock>0
+      </devicelock>
+    </switch>
+    <simpleonoff>
+      <state>1
+      </state>
+    </simpleonoff>
+    <powermeter>
+      <voltage>235297
+      </voltage>
+      <power>40620
+      </power>
+      <energy>190458
+      </energy>
+    </powermeter>
+    <temperature>
+      <celsius>210
+      </celsius>
+      <offset>0
+      </offset>
+    </temperature>
+  </device>
+  <device identifier="11657 0492712" id="23" functionbitmask="1024" fwversion="03.64" manufacturer="AVM" productname="FRITZ!DECT Repeater 100">
+    <present>0
+    </present>
+    <txbusy>0
+    </txbusy>
+    <name>FRITZ!DECT Repeater 100 #8
+    </name>
+  </device>
+</devicelist>
+"##;
+
+        let _ = parse_device_infos(xml.to_string())?;
+
+        Ok(())
     }
 }

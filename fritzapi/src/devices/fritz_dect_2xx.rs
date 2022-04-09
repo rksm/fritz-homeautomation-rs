@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
 pub struct FritzDect2XX {
     pub identifier: String,
     pub name: String,

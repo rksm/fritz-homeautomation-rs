@@ -7,7 +7,7 @@
 //!
 //! ### List devices
 //!
-//! ```no_run
+//! ```ignore
 //! // Get a session id
 //! let sid = fritzapi::get_sid(&user, &password)?;
 //!
@@ -21,16 +21,13 @@
 //! }
 //! ```
 
+pub(crate) mod api;
+pub(crate) mod client;
+pub(crate) mod devices;
 pub mod error;
-mod fritz_xml;
-mod api;
-mod devices;
+pub(crate) mod fritz_xml;
 
-pub use error::{Result, FritzError};
-pub use api::get_sid;
-pub use fritz_xml::{DeviceStatsKind,DeviceStats};
-pub use devices::{AVMDevice,FritzDect2XX};
-
-pub fn list_devices(sid: &str) -> error::Result<Vec<devices::AVMDevice>> {
-    devices::AVMDevice::list(sid)
-}
+pub use client::FritzClient;
+pub use devices::{AVMDevice, FritzDect2XX};
+pub use error::{FritzError, Result};
+pub use fritz_xml::{DeviceStats, DeviceStatsKind, Unit};
