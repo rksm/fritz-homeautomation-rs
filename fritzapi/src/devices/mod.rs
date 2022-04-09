@@ -1,16 +1,15 @@
-use crate::error::Result;
-use crate::fritz_xml as xml;
-use crate::FritzClient;
+#[cfg(not(target_family = "wasm"))]
+mod device_impl;
+pub mod fritz_dect_2xx;
 
-mod fritz_dect_2xx;
 pub use fritz_dect_2xx::FritzDect2XX;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum AVMDevice {
     FritzDect2XX(FritzDect2XX),
-    Other(xml::Device),
+    Other(Device),
 }
 
 impl std::fmt::Display for AVMDevice {
@@ -36,37 +35,6 @@ impl std::fmt::Display for AVMDevice {
 }
 
 impl AVMDevice {
-    pub fn from_xml_device(device: xml::Device) -> Self {
-        match device {
-            xml::Device {
-                identifier,
-                productname,
-                name,
-                switch: Some(xml::Switch { state, .. }),
-                powermeter:
-                    Some(xml::PowerMeter {
-                        energy,
-                        power,
-                        voltage,
-                        ..
-                    }),
-                temperature: Some(xml::Temperature { celsius, .. }),
-                ..
-            } if productname.starts_with("FRITZ!DECT 2") => AVMDevice::FritzDect2XX(FritzDect2XX {
-                identifier,
-                productname,
-                name,
-                on: state,
-                voltage: voltage as f32 * 0.001,
-                watts: power as f32 * 0.001,
-                energy_in_watt_h: energy,
-                celsius: celsius.parse::<f32>().unwrap_or_default() * 0.1,
-            }),
-
-            _ => AVMDevice::Other(device),
-        }
-    }
-
     pub fn id(&self) -> &str {
         match self {
             AVMDevice::FritzDect2XX(dev @ FritzDect2XX { .. }) => &dev.identifier,
@@ -103,20 +71,99 @@ impl AVMDevice {
             AVMDevice::Other(_) => "",
         }
     }
+}
 
-    pub fn fetch_device_stats(&self, client: &mut FritzClient) -> Result<Vec<xml::DeviceStats>> {
-        client.device_stats(self.id())
-    }
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeviceOrGroup {
+    Device(Device),
+    Group(DeviceGroup),
+}
 
-    pub fn turn_on(&mut self, client: &mut FritzClient) -> Result<()> {
-        client.turn_on(self.id())
-    }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Device {
+    pub identifier: String,
+    pub id: String,
+    pub functionbitmask: String,
+    pub fwversion: String,
+    pub manufacturer: String,
+    pub productname: String,
+    pub present: bool,
+    pub txbusy: bool,
+    pub name: String,
+    pub battery: Option<i32>,
+    pub batterylow: Option<bool>,
+    pub switch: Option<Switch>,
+    pub simpleonoff: Option<SimpleOnOff>,
+    pub powermeter: Option<PowerMeter>,
+    pub temperature: Option<Temperature>,
+}
 
-    pub fn turn_off(&mut self, client: &mut FritzClient) -> Result<()> {
-        client.turn_off(self.id())
-    }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DeviceGroup {
+    pub synchronized: bool,
+    pub identifier: String,
+    pub id: String,
+    pub functionbitmask: String,
+    pub fwversion: String,
+    pub manufacturer: String,
+    pub present: bool,
+    pub txbusy: bool,
+    pub name: String,
+    pub switch: Option<Switch>,
+    pub simpleonoff: Option<SimpleOnOff>,
+    pub powermeter: Option<PowerMeter>,
+    // groupinfo: ... // TODO
+}
 
-    pub fn toggle(&mut self, client: &mut FritzClient) -> Result<()> {
-        client.toggle(self.id())
+#[derive(Debug, Deserialize)]
+pub struct DeviceList {
+    #[serde(rename = "$value")]
+    pub list: Vec<DeviceOrGroup>,
+    // pub devices: Vec<Device>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Switch {
+    pub state: bool,
+    pub lock: bool,
+    pub devicelock: bool,
+    pub mode: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SimpleOnOff {
+    pub state: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PowerMeter {
+    /// Wert in 0,001 V (aktuelle Spannung, wird etwa alle 2 Minuten aktualisiert)
+    #[serde(deserialize_with = "deserialize_maybe_u32")]
+    pub voltage: u32,
+    /// Wert in 0,001 W (aktuelle Leistung, wird etwa alle 2 Minuten aktualisiert)
+    #[serde(deserialize_with = "deserialize_maybe_u32")]
+    pub power: u32,
+    /// Wert in 1.0 Wh (absoluter Verbrauch seit Inbetriebnahme)
+    #[serde(deserialize_with = "deserialize_maybe_u32")]
+    pub energy: u32,
+}
+
+/// celsius: Wert in 0,1 °C, negative und positive Werte möglich
+/// offset: Wert in 0,1 °C, negative und positive Werte möglich
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Temperature {
+    pub celsius: String,
+    pub offset: String,
+}
+
+fn deserialize_maybe_u32<'de, D>(d: D) -> std::result::Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(d)?;
+    match &s[..] {
+        "" => Ok(0),
+        _ => Ok(s.parse::<u32>().unwrap()),
     }
 }

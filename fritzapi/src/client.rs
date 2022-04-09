@@ -1,7 +1,7 @@
 use crate::api;
-use crate::devices;
 use crate::error::{FritzError, Result};
 use crate::fritz_xml;
+use crate::AVMDevice;
 
 /// The main interface to get data from the fritz box API.
 pub struct FritzClient {
@@ -20,12 +20,12 @@ impl FritzClient {
     }
 
     /// Returns list of all smart home devices. See [devices::AVMDevice].
-    pub fn list_devices(&mut self) -> Result<Vec<devices::AVMDevice>> {
+    pub fn list_devices(&mut self) -> Result<Vec<AVMDevice>> {
         let xml = self.request(api::Commands::GetDeviceListInfos)?;
         let devices = fritz_xml::parse_device_infos(xml)?;
         Ok(devices
             .into_iter()
-            .map(devices::AVMDevice::from_xml_device)
+            .map(AVMDevice::from_xml_device)
             .collect())
     }
 

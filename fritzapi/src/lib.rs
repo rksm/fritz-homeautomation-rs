@@ -21,13 +21,21 @@
 //! }
 //! ```
 
+pub mod devices;
+pub use devices::{AVMDevice, FritzDect2XX};
+
+#[cfg(not(target_family = "wasm"))]
 pub(crate) mod api;
+#[cfg(not(target_family = "wasm"))]
 pub(crate) mod client;
-pub(crate) mod devices;
+#[cfg(not(target_family = "wasm"))]
 pub mod error;
+#[cfg(not(target_family = "wasm"))]
 pub(crate) mod fritz_xml;
 
+#[cfg(not(target_family = "wasm"))]
 pub use client::FritzClient;
-pub use devices::{AVMDevice, FritzDect2XX};
+#[cfg(not(target_family = "wasm"))]
 pub use error::{FritzError, Result};
+#[cfg(not(target_family = "wasm"))]
 pub use fritz_xml::{DeviceStats, DeviceStatsKind, Unit};

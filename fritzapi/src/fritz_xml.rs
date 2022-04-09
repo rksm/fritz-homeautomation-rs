@@ -1,21 +1,13 @@
 #![allow(dead_code)]
 
-use crate::error::{FritzError, Result};
-use serde::{Deserialize, Deserializer, Serialize};
+use crate::{
+    devices::{Device, DeviceList, DeviceOrGroup},
+    error::{FritzError, Result},
+};
+use serde::Deserialize;
 use serde_xml_rs::from_reader;
 
 // response of login_sid.lua
-
-fn deserialize_maybe_u32<'de, D>(d: D) -> std::result::Result<u32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(d)?;
-    match &s[..] {
-        "" => Ok(0),
-        _ => Ok(s.parse::<u32>().unwrap()),
-    }
-}
 
 #[derive(Debug, Deserialize)]
 pub struct SessionInfo {
@@ -28,90 +20,6 @@ pub struct SessionInfo {
 }
 
 // response of getdevicelistinfos
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DeviceOrGroup {
-    Device(Device),
-    Group(DeviceGroup),
-}
-
-#[derive(Debug, Deserialize)]
-pub struct DeviceList {
-    #[serde(rename = "$value")]
-    pub list: Vec<DeviceOrGroup>,
-    // pub devices: Vec<Device>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Device {
-    pub identifier: String,
-    pub id: String,
-    pub functionbitmask: String,
-    pub fwversion: String,
-    pub manufacturer: String,
-    pub productname: String,
-    pub present: bool,
-    pub txbusy: bool,
-    pub name: String,
-    pub battery: Option<i32>,
-    pub batterylow: Option<bool>,
-    pub switch: Option<Switch>,
-    pub simpleonoff: Option<SimpleOnOff>,
-    pub powermeter: Option<PowerMeter>,
-    pub temperature: Option<Temperature>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DeviceGroup {
-    pub synchronized: bool,
-    pub identifier: String,
-    pub id: String,
-    pub functionbitmask: String,
-    pub fwversion: String,
-    pub manufacturer: String,
-    pub present: bool,
-    pub txbusy: bool,
-    pub name: String,
-    pub switch: Option<Switch>,
-    pub simpleonoff: Option<SimpleOnOff>,
-    pub powermeter: Option<PowerMeter>,
-    // groupinfo: ... // TODO
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Switch {
-    pub state: bool,
-    pub lock: bool,
-    pub devicelock: bool,
-    pub mode: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SimpleOnOff {
-    pub state: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PowerMeter {
-    /// Wert in 0,001 V (aktuelle Spannung, wird etwa alle 2 Minuten aktualisiert)
-    #[serde(deserialize_with = "deserialize_maybe_u32")]
-    pub voltage: u32,
-    /// Wert in 0,001 W (aktuelle Leistung, wird etwa alle 2 Minuten aktualisiert)
-    #[serde(deserialize_with = "deserialize_maybe_u32")]
-    pub power: u32,
-    /// Wert in 1.0 Wh (absoluter Verbrauch seit Inbetriebnahme)
-    #[serde(deserialize_with = "deserialize_maybe_u32")]
-    pub energy: u32,
-}
-
-/// celsius: Wert in 0,1 °C, negative und positive Werte möglich
-/// offset: Wert in 0,1 °C, negative und positive Werte möglich
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Temperature {
-    pub celsius: String,
-    pub offset: String,
-}
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
