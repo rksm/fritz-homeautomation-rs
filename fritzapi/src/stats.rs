@@ -10,7 +10,7 @@ pub(crate) struct RawDeviceStats {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RawManyStats {
-    pub stats: Vec<RawStats>,
+    pub stats: Option<Vec<RawStats>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

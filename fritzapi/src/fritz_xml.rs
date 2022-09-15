@@ -109,11 +109,10 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>> {
         multiplier: f32,
         result: &mut Vec<DeviceStats>,
     ) {
-        if let Some(raw) = raw {
+        if let Some(stats) = raw.and_then(|raw| raw.stats) {
             result.push(DeviceStats {
                 kind,
-                values: raw
-                    .stats
+                values: stats
                     .into_iter()
                     .map(|ea| DeviceStatValues {
                         grid: ea.grid,
