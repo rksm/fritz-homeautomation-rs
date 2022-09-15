@@ -1,6 +1,5 @@
 use super::{AVMDevice, Device, FritzDect2XX, PowerMeter, Switch, Temperature};
 use crate::error::Result;
-use crate::fritz_xml as xml;
 use crate::FritzClient;
 
 impl AVMDevice {
@@ -35,7 +34,10 @@ impl AVMDevice {
         }
     }
 
-    pub fn fetch_device_stats(&self, client: &mut FritzClient) -> Result<Vec<xml::DeviceStats>> {
+    pub fn fetch_device_stats(
+        &self,
+        client: &mut FritzClient,
+    ) -> Result<Vec<crate::stats::DeviceStats>> {
         client.device_stats(self.id())
     }
 

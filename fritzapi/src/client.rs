@@ -29,7 +29,7 @@ impl FritzClient {
             .collect())
     }
 
-    pub fn device_stats(&mut self, ain: impl ToString) -> Result<Vec<fritz_xml::DeviceStats>> {
+    pub fn device_stats(&mut self, ain: impl ToString) -> Result<Vec<crate::stats::DeviceStats>> {
         let ain = ain.to_string();
         let xml = self.request(api::Commands::GetBasicDeviceStats { ain })?;
         fritz_xml::parse_device_stats(xml)

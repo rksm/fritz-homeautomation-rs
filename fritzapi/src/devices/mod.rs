@@ -5,7 +5,7 @@ pub mod fritz_dect_2xx;
 pub use fritz_dect_2xx::FritzDect2XX;
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum AVMDevice {
     FritzDect2XX(FritzDect2XX),
@@ -80,7 +80,7 @@ pub enum DeviceOrGroup {
     Group(DeviceGroup),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Device {
     pub identifier: String,
     pub id: String,
@@ -123,7 +123,7 @@ pub struct DeviceList {
     // pub devices: Vec<Device>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Switch {
     pub state: bool,
     pub lock: bool,
@@ -131,12 +131,12 @@ pub struct Switch {
     pub mode: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct SimpleOnOff {
     pub state: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct PowerMeter {
     /// Wert in 0,001 V (aktuelle Spannung, wird etwa alle 2 Minuten aktualisiert)
     #[serde(deserialize_with = "deserialize_maybe_u32")]
@@ -151,7 +151,7 @@ pub struct PowerMeter {
 
 /// celsius: Wert in 0,1 °C, negative und positive Werte möglich
 /// offset: Wert in 0,1 °C, negative und positive Werte möglich
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Temperature {
     pub celsius: String,
     pub offset: String,

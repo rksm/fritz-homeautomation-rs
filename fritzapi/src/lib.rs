@@ -22,7 +22,9 @@
 //! ```
 
 pub mod devices;
+pub mod stats;
 pub use devices::{AVMDevice, FritzDect2XX};
+pub use stats::{DeviceStats, DeviceStatsKind, Unit};
 
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod api;
@@ -37,5 +39,3 @@ pub(crate) mod fritz_xml;
 pub use client::FritzClient;
 #[cfg(not(target_family = "wasm"))]
 pub use error::{FritzError, Result};
-#[cfg(not(target_family = "wasm"))]
-pub use fritz_xml::{DeviceStats, DeviceStatsKind, Unit};
