@@ -1,2 +1,2 @@
 [workspace]
-members = ["fritzctrl", "fritzapi"]
+members = ["fritzctrl", "fritzapi", "fritz-christmas-light-controller"]
