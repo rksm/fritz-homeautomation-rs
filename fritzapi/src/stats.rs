@@ -76,7 +76,7 @@ impl DeviceStatsKind {
 }
 
 impl std::str::FromStr for DeviceStatsKind {
-    type Err = String;
+    type Err = crate::error::FritzError;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         match input.to_lowercase().as_str() {
@@ -84,7 +84,10 @@ impl std::str::FromStr for DeviceStatsKind {
             "power" | "watt" | "w" => Ok(DeviceStatsKind::Power),
             "energy" | "wh" => Ok(DeviceStatsKind::Energy),
             "volt" | "v" | "voltage" => Ok(DeviceStatsKind::Voltage),
-            _ => Err(format!("Cannot convert {:?} to DeviceStatsKind", input)),
+            _ => Err(Self::Err::ParserError(format!(
+                "Cannot convert {:?} to DeviceStatsKind",
+                input
+            ))),
         }
     }
 }
