@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 use crate::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Config {
-    start: DateTime<Local>,
-    end: DateTime<Local>,
+pub struct Config {
+    pub start: DateTime<Local>,
+    pub end: DateTime<Local>,
     #[serde(with = "crate::duration")]
-    check_state: Duration,
-    entries: Vec<Entry>,
+    pub check_state: Duration,
+    pub entries: Vec<Entry>,
 }
 
 impl Config {
@@ -22,6 +22,10 @@ impl Config {
 
     pub fn from_yaml(yaml_reader: impl Read) -> Result<Self> {
         Ok(serde_yaml::from_reader(yaml_reader)?)
+    }
+
+    pub fn from_string(s: impl ToString) -> Result<Self> {
+        Config::from_yaml(s.to_string().as_bytes())
     }
 
     pub fn intervals(&self) -> Vec<Interval> {
@@ -248,7 +252,7 @@ entries:
   state: off
 ";
 
-        let config = Config::from_yaml(config.to_string().as_bytes()).expect("read config");
+        let config = Config::from_string(config).expect("read config");
         let result = config
             .intervals()
             .iter()
