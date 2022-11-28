@@ -143,6 +143,14 @@ fn daylight(args: &ArgMatches) {
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+#[derive(Debug, Clone, Copy)]
+enum Commands {
+    List,
+    Switch,
+    Daylight,
+    Schedule,
+}
+
 fn main() {
     env_logger::init();
 
@@ -250,27 +258,39 @@ fn main() {
             app.print_help().unwrap();
             exit(1);
         }
-        Some(ref cmd) => cmd.name.as_str(),
+        Some(ref cmd) => match cmd.name.as_str() {
+            "daylight" => Commands::Daylight,
+            "list" => Commands::List,
+            "switch" => Commands::Switch,
+            "schedule" => Commands::Schedule,
+            _ => {
+                app.print_help().unwrap();
+                exit(1);
+            }
+        },
     };
 
     match cmd {
-        "daylight" => {
+        Commands::Daylight => {
             let args = args.subcommand_matches("daylight").unwrap();
             daylight(args);
         }
-        "list" => {
+
+        Commands::List => {
             if let Err(err) = list::list(args.subcommand_matches("list").unwrap()) {
                 println!("{}", err);
                 exit(2);
             }
         }
-        "switch" => {
+
+        Commands::Switch => {
             if let Err(err) = switch::switch(args.subcommand_matches("switch").unwrap()) {
-                println!("{}", err);
+                println!("Error: {}", err);
                 exit(2);
             }
         }
-        "schedule" => {
+
+        Commands::Schedule => {
             let args = args.subcommand_matches("schedule").unwrap();
             let user = args.value_of("user").unwrap();
             let password = args.value_of("password").unwrap();
@@ -283,10 +303,6 @@ fn main() {
                 eprintln!("Error running schedule: {}", err);
                 exit(3);
             };
-        }
-        _ => {
-            app.print_help().unwrap();
-            exit(1);
         }
     }
 }

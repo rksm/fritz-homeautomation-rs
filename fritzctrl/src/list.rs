@@ -1,7 +1,7 @@
 use clap::ArgMatches;
+use log::info;
 use prettytable::{format, Cell, Row, Table};
 use std::collections::HashSet;
-use log::info;
 
 pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
     let user = args.value_of("user").unwrap();
@@ -17,8 +17,8 @@ pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
         .value_of("limit")
         .map(|limit| limit.parse().unwrap_or_default());
 
-    let sid = fritzapi::get_sid(&user, &password)?;
-    let devices = fritzapi::list_devices(&sid)?;
+    let mut client = fritzapi::FritzClient::new(user, password);
+    let devices = client.list_devices()?;
 
     if let Some(ain) = ain {
         let device = match devices.into_iter().find(|dev| dev.id() == ain) {
@@ -28,7 +28,7 @@ pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
             Some(device) => device,
         };
 
-        let tables = device_detail_table(&sid, &device, &kinds, limit)?
+        let tables = device_detail_table(&mut client, &device, &kinds, limit)?
             .into_iter()
             .map(|ea| ea.to_string())
             .collect::<Vec<_>>()
@@ -87,13 +87,13 @@ fn print_device_table(devices: &[fritzapi::AVMDevice]) {
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 fn device_detail_table(
-    sid: &str,
+    client: &mut fritzapi::FritzClient,
     device: &fritzapi::AVMDevice,
     kinds: &Option<HashSet<fritzapi::DeviceStatsKind>>,
     limit: Option<usize>,
 ) -> anyhow::Result<Vec<Table>> {
-    device
-        .fetch_device_stats(&sid)?
+    client
+        .device_stats(device.id())?
         .into_iter()
         .filter_map(|stat| {
             match kinds {

@@ -28,7 +28,7 @@ pub fn switch(args: &ArgMatches) -> anyhow::Result<()> {
     let action = if on {
         SwitchAction::On
     } else if off {
-        SwitchAction::On
+        SwitchAction::Off
     } else if toggle {
         SwitchAction::Toggle
     } else {
@@ -39,10 +39,10 @@ pub fn switch(args: &ArgMatches) -> anyhow::Result<()> {
 }
 
 pub fn run(user: &str, password: &str, ain: &str, action: SwitchAction) -> anyhow::Result<()> {
-    let sid = fritzapi::get_sid(&user, &password)?;
-    let devices: Vec<_> = fritzapi::list_devices(&sid)?;
+    let mut client = fritzapi::FritzClient::new(user, password);
+    let devices: Vec<_> = client.list_devices()?;
 
-    let mut device = match devices.into_iter().find(|dev| dev.id() == ain) {
+    let device = match devices.into_iter().find(|dev| dev.id() == ain) {
         None => {
             return Err(anyhow::anyhow!("Cannot find device with ain {:?}", ain));
         }
@@ -50,9 +50,9 @@ pub fn run(user: &str, password: &str, ain: &str, action: SwitchAction) -> anyho
     };
 
     match action {
-        SwitchAction::On => device.turn_on(&sid)?,
-        SwitchAction::Off => device.turn_off(&sid)?,
-        SwitchAction::Toggle => device.toggle(&sid)?,
+        SwitchAction::On => client.turn_on(device.id())?,
+        SwitchAction::Off => client.turn_off(device.id())?,
+        SwitchAction::Toggle => client.toggle(device.id())?,
     };
 
     Ok(())

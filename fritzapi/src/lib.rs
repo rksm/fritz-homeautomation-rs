@@ -7,7 +7,7 @@
 //!
 //! ### List devices
 //!
-//! ```no_run
+//! ```ignore
 //! // Get a session id
 //! let sid = fritzapi::get_sid(&user, &password)?;
 //!
@@ -21,16 +21,21 @@
 //! }
 //! ```
 
+pub mod devices;
+pub mod stats;
+pub use devices::{AVMDevice, FritzDect2XX};
+pub use stats::{DeviceStats, DeviceStatsKind, Unit};
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) mod api;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) mod client;
+#[cfg(not(target_family = "wasm"))]
 pub mod error;
-mod fritz_xml;
-mod api;
-mod devices;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) mod fritz_xml;
 
-pub use error::{Result, FritzError};
-pub use api::get_sid;
-pub use fritz_xml::{DeviceStatsKind,DeviceStats};
-pub use devices::{AVMDevice,FritzDect2XX};
-
-pub fn list_devices(sid: &str) -> error::Result<Vec<devices::AVMDevice>> {
-    devices::AVMDevice::list(sid)
-}
+#[cfg(not(target_family = "wasm"))]
+pub use client::FritzClient;
+#[cfg(not(target_family = "wasm"))]
+pub use error::{FritzError, Result};
