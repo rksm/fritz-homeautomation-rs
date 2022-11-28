@@ -21,6 +21,9 @@
 //! }
 //! ```
 
+#[macro_use]
+extern crate tracing;
+
 pub mod devices;
 pub mod stats;
 pub use devices::{AVMDevice, FritzDect2XX};

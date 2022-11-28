@@ -18,12 +18,12 @@ impl From<Action> for SwitchAction {
 }
 
 pub fn switch(args: &ArgMatches) -> anyhow::Result<()> {
-    let user = args.value_of("user").unwrap();
-    let password = args.value_of("password").unwrap();
-    let ain = args.value_of("device").unwrap();
-    let toggle = args.is_present("toggle");
-    let on = args.is_present("on");
-    let off = args.is_present("off");
+    let user = args.get_one::<String>("user").unwrap();
+    let password = args.get_one::<String>("password").unwrap();
+    let ain = args.get_one::<String>("device").unwrap();
+    let toggle = args.get_flag("toggle");
+    let on = args.get_flag("on");
+    let off = args.get_flag("off");
 
     let action = if on {
         SwitchAction::On
@@ -38,6 +38,7 @@ pub fn switch(args: &ArgMatches) -> anyhow::Result<()> {
     run(user, password, ain, action)
 }
 
+#[tracing::instrument(level = "trace", skip(password))]
 pub fn run(user: &str, password: &str, ain: &str, action: SwitchAction) -> anyhow::Result<()> {
     let mut client = fritzapi::FritzClient::new(user, password);
     let devices: Vec<_> = client.list_devices()?;

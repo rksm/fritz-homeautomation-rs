@@ -61,10 +61,12 @@ impl FritzClient {
         Ok(sid)
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn request(&mut self, cmd: api::Commands) -> Result<String> {
         self.request_attempt(cmd, 0)
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn request_attempt(&mut self, cmd: api::Commands, request_count: usize) -> Result<String> {
         let sid = match self.sid.clone().or_else(|| self.update_sid().ok()) {
             None => return Err(FritzError::Forbidden),

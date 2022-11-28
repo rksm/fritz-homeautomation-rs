@@ -1,5 +1,4 @@
 use lazy_static::lazy_static;
-use log::info;
 use regex::Regex;
 use reqwest::blocking::{get as GET, Client, Response};
 
@@ -64,7 +63,7 @@ pub fn get_sid(user: impl AsRef<str>, password: impl AsRef<str>) -> Result<Strin
 }
 
 /// Commands for [FritzClient::request].
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum Commands {
     GetDeviceListInfos,
     GetBasicDeviceStats { ain: String },

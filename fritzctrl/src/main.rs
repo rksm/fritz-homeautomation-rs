@@ -89,9 +89,14 @@
 //! If you want to integrate directly with the API have a look at the [fritzapi crate](https://crates.io/crates/fritzapi).
 //!
 
-use clap::{App, Arg, ArgMatches};
+#[macro_use]
+extern crate tracing;
+
+use chrono::{prelude::*, Duration};
+use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
 use std::io::Read;
 use std::process::exit;
+use tracing_subscriber::prelude::*;
 
 mod daylight;
 mod list;
@@ -101,33 +106,28 @@ mod switch;
 
 fn daylight(args: &ArgMatches) {
     // get date arguments
-    let date = args
-        .value_of("date")
-        .and_then(|val| chrono::NaiveDate::parse_from_str(val, "%Y-%m-%d").ok());
-    let from_date = args
-        .value_of("from-date")
-        .and_then(|val| chrono::NaiveDate::parse_from_str(val, "%Y-%m-%d").ok());
-    let to_date = args
-        .value_of("to-date")
-        .and_then(|val| chrono::NaiveDate::parse_from_str(val, "%Y-%m-%d").ok());
+    let date = args.get_one::<NaiveDate>("date");
+    let from_date = args.get_one::<NaiveDate>("from-date");
+    let to_date = args.get_one::<NaiveDate>("to-date");
+
     let (from_date, to_date) = match (from_date, to_date, date) {
-        (Some(from_date), Some(to_date), _) => (from_date, to_date),
-        (_, _, Some(date)) => (date, date),
+        (Some(from_date), Some(to_date), _) => (*from_date, *to_date),
+        (_, _, Some(date)) => (*date, *date),
         _ => {
-            let date = chrono::Local::today().naive_local();
+            let date = Local::now().date_naive();
             (date, date)
         }
     };
 
     // get shift
-    let shift_from = args.value_of("shift-from").and_then(parser::parse_duration);
-    let shift_to = args.value_of("shift-to").and_then(parser::parse_duration);
+    let shift_from = args.get_one::<Duration>("shift-from").copied();
+    let shift_to = args.get_one::<Duration>("shift-to").copied();
 
     // get location
-    let latitude: Option<f64> = args.value_of("latitude").and_then(|val| val.parse().ok());
-    let longitude: Option<f64> = args.value_of("longitude").and_then(|val| val.parse().ok());
+    let latitude = args.get_one::<f64>("latitude");
+    let longitude = args.get_one::<f64>("longitude");
     let location = match (latitude, longitude) {
-        (Some(latitude), Some(longitude)) => daylight::Location::new(latitude, longitude),
+        (Some(latitude), Some(longitude)) => daylight::Location::new(*latitude, *longitude),
         _ => {
             if let Ok(loc) = daylight::default_location() {
                 loc
@@ -152,113 +152,111 @@ enum Commands {
 }
 
 fn main() {
-    env_logger::init();
-
     dotenv::dotenv().ok();
 
-    let user = Arg::with_name("user")
+    let user = Arg::new("user")
         .long("user")
-        .short("u")
-        .takes_value(true)
+        .short('u')
+        .value_name("USER")
         .required(true)
         .env("FRITZ_USER");
 
-    let password = Arg::with_name("password")
+    let password = Arg::new("password")
         .long("password")
-        .short("p")
-        .takes_value(true)
+        .short('p')
         .required(true)
         .env("FRITZ_PASSWORD");
 
-    let device = Arg::with_name("device")
-        .long("device")
-        .takes_value(true)
+    let device = Arg::new("device")
         .required(true)
         .help("The device identifier (ain) of the device to query / control.");
 
-    let mut app = App::new(env!("CARGO_PKG_NAME"))
+    let mut app = Command::new(env!("CARGO_PKG_NAME"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .version(env!("CARGO_PKG_VERSION"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
+        .arg(Arg::new("verbose").long("verbose").short('v').action(ArgAction::SetTrue))
         .subcommand(
-            App::new("list")
+            Command::new("list")
                 .about("List all connected devices or list sensor data of individual device (when used with --device ID)")
                 .arg(user.clone())
                 .arg(password.clone())
                 .arg(device.clone().required(false))
-                .arg(Arg::with_name("limit")
+                .arg(Arg::new("limit")
                      .long("limit")
-                     .short("l")
-                     .takes_value(true)
-                     .validator(parser::valid_usize))
-                .arg(Arg::with_name("kinds")
+                     .short('l')
+                     .value_parser(value_parser!(usize)))
+                .arg(Arg::new("kinds")
                      .long("kinds")
-                     .takes_value(true)
-                     .validator(parser::valid_kinds)
+                    .value_parser(parser::parse_kinds)
                      .requires("device")
                      .help("Comma separated list of the detail categories to show. Possible values: temperature, voltage, power, energy")),
         )
         .subcommand(
-            App::new("switch")
+            Command::new("switch")
                 .about("Toggle device on / off")
                 .arg(user.clone())
                 .arg(password.clone())
-                .arg(device.clone().required(true))
-                .arg(Arg::with_name("toggle").long("toggle"))
-                .arg(Arg::with_name("on").long("on"))
-                .arg(Arg::with_name("off").long("off")),
+                .arg(device.required(true))
+                .arg(Arg::new("toggle").long("toggle").action(ArgAction::SetTrue))
+                .arg(Arg::new("on").long("on").action(ArgAction::SetTrue))
+                .arg(Arg::new("off").long("off").action(ArgAction::SetTrue)),
         )
         .subcommand(
-            App::new("daylight")
+            Command::new("daylight")
                 .about("Prints the daylight times at a specific location.")
-                .arg(Arg::with_name("latitude")
+                .arg(Arg::new("latitude")
                      .long("latitude")
-                     .takes_value(true)
                      .required(true)
                      .env("LATITUDE")
-                     .validator(parser::valid_coord))
-                .arg(Arg::with_name("longitude")
+                     .value_parser(value_parser!(f64)))
+                .arg(Arg::new("longitude")
                      .long("longitude")
-                     .takes_value(true)
                      .required(true)
                      .env("LONGITUDE")
-                     .validator(parser::valid_coord))
-                .arg(Arg::with_name("date")
+                     .value_parser(value_parser!(f64)))
+                .arg(Arg::new("date")
                      .long("date")
-                     .takes_value(true)
-                     .validator(parser::valid_date))
-                .arg(Arg::with_name("from-date")
+                     .value_parser(parser::valid_date))
+                .arg(Arg::new("from-date")
                      .long("from-date")
-                     .takes_value(true)
-                     .validator(parser::valid_date))
-                .arg(Arg::with_name("to-date")
+                     .value_parser(parser::valid_date))
+                .arg(Arg::new("to-date")
                      .long("to-date")
-                     .takes_value(true)
-                     .validator(parser::valid_date))
-                .arg(Arg::with_name("shift-from")
+                     .value_parser(parser::valid_date))
+                .arg(Arg::new("shift-from")
                      .long("shift-from")
-                     .takes_value(true)
-                     .validator(parser::valid_shift))
-                .arg(Arg::with_name("shift-to")
+                     .value_parser(parser::parse_duration))
+                .arg(Arg::new("shift-to")
                      .long("shift-to")
-                     .takes_value(true)
-                     .validator(parser::valid_shift))
+                     .value_parser(parser::parse_duration))
         )
         .subcommand(
-            App::new("schedule")
+            Command::new("schedule")
                 .about("Reads newline separated commands from stdin and then runs until the last command is done.")
-                .arg(user.clone())
-                .arg(password.clone())
+                .arg(user)
+                .arg(password)
         );
 
     let args = app.clone().get_matches();
 
-    let cmd = match args.subcommand {
+    let log_level = if args.get_flag("verbose") {
+        "info,fritz=trace,reqwest=debug"
+    } else {
+        "info"
+    };
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::builder().parse_lossy(log_level))
+        .with(tracing_forest::ForestLayer::default())
+        .init();
+
+    let cmd = match args.subcommand() {
         None => {
             app.print_help().unwrap();
             exit(1);
         }
-        Some(ref cmd) => match cmd.name.as_str() {
+        Some((cmd, _args)) => match cmd {
             "daylight" => Commands::Daylight,
             "list" => Commands::List,
             "switch" => Commands::Switch,
@@ -292,8 +290,8 @@ fn main() {
 
         Commands::Schedule => {
             let args = args.subcommand_matches("schedule").unwrap();
-            let user = args.value_of("user").unwrap();
-            let password = args.value_of("password").unwrap();
+            let user = args.get_one::<String>("user").unwrap();
+            let password = args.get_one::<String>("password").unwrap();
             let stdin = std::io::stdin();
             let mut input = String::new();
             stdin.lock().read_to_string(&mut input).unwrap();
