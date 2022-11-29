@@ -7,6 +7,7 @@ use crate::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
+    pub device: String,
     pub start: DateTime<Local>,
     pub end: DateTime<Local>,
     #[serde(with = "crate::duration")]
@@ -195,6 +196,7 @@ mod tests {
         let end = begin + Duration::days(4);
 
         let config = Config {
+            device: "...".to_string(),
             start: begin,
             end,
             check_state: Duration::minutes(10),
@@ -212,7 +214,9 @@ mod tests {
             ],
         };
         let result = serde_yaml::to_string(&config).unwrap();
-        let expected = "start: 2022-11-28T00:00:00+01:00
+        println!("{result}");
+        let expected = "device: '...'
+start: 2022-11-28T00:00:00+01:00
 end: 2022-12-02T00:00:00+01:00
 check_state: 10mins 0secs
 entries:
@@ -228,7 +232,8 @@ entries:
 
     #[test]
     fn create_intervals() {
-        let config = "start: 2022-11-28T00:00:00+01:00
+        let config = "device: '...'
+start: 2022-11-28T00:00:00+01:00
 end: 2022-12-01T23:59:59+01:00
 check_state: 10mins 0secs
 entries:

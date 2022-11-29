@@ -4,9 +4,9 @@ extern crate tracing;
 use std::{path::Path, str::FromStr};
 
 use anyhow::Result;
-use chrono::{prelude::*, Duration};
+use chrono::{prelude::*, Duration, DurationRound};
 use clap::Parser;
-use fritz_christmas_light_controller::{Config, Entry, Interval, State, StateChange, When};
+use fritz_christmas_light_controller::{Config, Entry, Interval, State, StateChange, Timer, When};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::prelude::*;
@@ -38,6 +38,9 @@ fn main() {
 
 fn run(args: Args) -> Result<()> {
     let mut config = Config::from_yaml_file("config.yaml")?;
+    let mut timer = Timer::with_regular_update(config.check_state);
+    timer.set_intervals(&config.intervals());
+
     let (config_change_tx, config_change_rx) = flume::bounded(0);
     let mut watcher = notify::recommended_watcher(move |res| match res {
         Ok(event) => {
@@ -52,23 +55,21 @@ fn run(args: Args) -> Result<()> {
     enum Action {
         ConfigFileChanged,
         Tick,
-        Skip,
+        Error(anyhow::Error),
     }
     use Action::*;
 
     loop {
-        dbg!(&config);
-
         let action = flume::Selector::new()
             .recv(&config_change_rx, |recv| match recv {
-                Err(err) => {
-                    tracing::error!("config file watcher closed: {err}");
-                    Skip
-                }
+                Err(err) => Error(anyhow::anyhow!("config file watcher closed: {err}")),
                 Ok(_) => ConfigFileChanged,
             })
-            .wait_timeout(config.check_state.to_std().unwrap())
-            .unwrap_or(Tick);
+            .recv(&timer.timer_rx(), |msg| match msg {
+                Err(err) => Error(anyhow::anyhow!("timer channel closed: {err}")),
+                Ok(_) => Tick,
+            })
+            .wait();
 
         match action {
             Tick => {
@@ -79,6 +80,8 @@ fn run(args: Args) -> Result<()> {
                 match Config::from_yaml_file("config.yaml") {
                     Ok(c) => {
                         config = c;
+                        timer = Timer::with_regular_update(config.check_state);
+                        timer.set_intervals(&config.intervals());
                     }
                     Err(err) => {
                         tracing::error!("Cannot read config file: {err}");
@@ -86,12 +89,7 @@ fn run(args: Args) -> Result<()> {
                     }
                 }
             }
-            Skip => {}
+            Error(err) => return Err(err),
         };
     }
-
-    // Add a path to be watched. All files and directories at that path and
-    // below will be monitored for changes.
-
-    Ok(())
 }
