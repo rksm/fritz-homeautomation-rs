@@ -1,20 +1,19 @@
 #[macro_use]
 extern crate tracing;
 
-use std::{path::Path, str::FromStr};
-
 use anyhow::Result;
-use chrono::{prelude::*, Duration, DurationRound};
 use clap::Parser;
-use fritz_christmas_light_controller::{Config, Entry, Interval, State, StateChange, Timer, When};
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use serde::{Deserialize, Serialize};
+use fritz_christmas_light_controller::{Config, Timer};
+use notify::{RecursiveMode, Watcher};
+use std::path::PathBuf;
 use tracing_subscriber::prelude::*;
 
 #[derive(Parser)]
 struct Args {
     #[clap(short, long, action)]
     verbose: bool,
+    #[clap(short, long, action, help = "yaml config file")]
+    config: PathBuf,
 }
 
 fn main() {
@@ -37,7 +36,7 @@ fn main() {
 }
 
 fn run(args: Args) -> Result<()> {
-    let mut config = Config::from_yaml_file("config.yaml")?;
+    let mut config = Config::from_yaml_file(&args.config)?;
     let mut timer = Timer::with_regular_update(config.check_state);
     timer.set_intervals(&config.intervals());
 
@@ -50,7 +49,7 @@ fn run(args: Args) -> Result<()> {
         Err(e) => println!("watch error: {:?}", e),
     })?;
 
-    watcher.watch(Path::new("config.yaml"), RecursiveMode::NonRecursive)?;
+    watcher.watch(&args.config, RecursiveMode::NonRecursive)?;
 
     enum Action {
         ConfigFileChanged,
@@ -73,19 +72,19 @@ fn run(args: Args) -> Result<()> {
 
         match action {
             Tick => {
-                tracing::info!("need to update");
+                info!("need to update");
             }
             ConfigFileChanged => {
-                tracing::info!("config changed!");
-                match Config::from_yaml_file("config.yaml") {
+                info!("config changed!");
+                match Config::from_yaml_file(&args.config) {
                     Ok(c) => {
                         config = c;
                         timer = Timer::with_regular_update(config.check_state);
                         timer.set_intervals(&config.intervals());
                     }
                     Err(err) => {
-                        tracing::error!("Cannot read config file: {err}");
-                        tracing::warn!("will continue to use old config!");
+                        error!("Cannot read config file: {err}");
+                        warn!("will continue to use old config!");
                     }
                 }
             }
