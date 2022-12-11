@@ -28,13 +28,12 @@ pub mod devices;
 pub mod stats;
 pub use devices::{AVMDevice, FritzDect2XX};
 pub use stats::{DeviceStats, DeviceStatsKind, Unit};
+pub mod error;
 
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod api;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod client;
-#[cfg(not(target_family = "wasm"))]
-pub mod error;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod fritz_xml;
 
