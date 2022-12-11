@@ -3,9 +3,9 @@ extern crate tracing;
 
 use anyhow::Result;
 use clap::Parser;
-use fritz_christmas_light_controller::{Config, Timer};
+use fritz_christmas_light_controller::{Config, FritzUpdate, RealtFritzUpdater, Timer};
 use notify::{RecursiveMode, Watcher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing_subscriber::prelude::*;
 
 #[derive(Parser)]
@@ -14,6 +14,10 @@ struct Args {
     verbose: bool,
     #[clap(short, long, action, help = "yaml config file")]
     config: PathBuf,
+    #[clap(long, env = "FRITZ_USER")]
+    user: String,
+    #[clap(long, env = "FRITZ_PASSWORD")]
+    password: String,
 }
 
 fn main() {
@@ -32,11 +36,13 @@ fn main() {
         .with(tracing_forest::ForestLayer::default())
         .init();
 
-    run(args).unwrap();
+    let updater = RealtFritzUpdater::new(args.user, args.password);
+    run(args.config, updater).unwrap();
 }
 
-fn run(args: Args) -> Result<()> {
-    let mut config = Config::from_yaml_file(&args.config)?;
+fn run(config_file: impl AsRef<Path>, updater: impl FritzUpdate) -> Result<()> {
+    let config_file = config_file.as_ref();
+    let mut config = Config::from_yaml_file(config_file)?;
     let mut timer = Timer::with_regular_update(config.check_state);
     timer.set_intervals(&config.intervals());
 
@@ -49,7 +55,7 @@ fn run(args: Args) -> Result<()> {
         Err(e) => println!("watch error: {:?}", e),
     })?;
 
-    watcher.watch(&args.config, RecursiveMode::NonRecursive)?;
+    watcher.watch(config_file, RecursiveMode::NonRecursive)?;
 
     enum Action {
         ConfigFileChanged,
@@ -72,11 +78,20 @@ fn run(args: Args) -> Result<()> {
 
         match action {
             Tick => {
-                info!("need to update");
+                let current = config.intervals().into_iter().find(|ea| ea.is_current());
+                let current = if let Some(current) = current {
+                    current
+                } else {
+                    warn!("No current interval found, skipping");
+                    continue;
+                };
+                if let Err(err) = updater.set_state(current.state, &config.device) {
+                    error!("Error updating fritz: {err}");
+                }
             }
             ConfigFileChanged => {
                 info!("config changed!");
-                match Config::from_yaml_file(&args.config) {
+                match Config::from_yaml_file(config_file) {
                     Ok(c) => {
                         config = c;
                         timer = Timer::with_regular_update(config.check_state);

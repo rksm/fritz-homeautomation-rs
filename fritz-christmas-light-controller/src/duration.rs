@@ -16,7 +16,13 @@ pub fn duration_pretty(d: Duration) -> String {
 pub fn duration_parse(s: &str) -> Result<Duration, Error> {
     let mut result = Duration::zero();
 
-    let Some((a,b)) = s.trim().split_once(' ') else { return Err(Error::DurationParseError("unable to parse duration from {s:?}".to_string())); };
+    let (a, b) = if let Some((a, b)) = s.trim().split_once(' ') {
+        (a, b)
+    } else {
+        return Err(Error::DurationParseError(
+            "unable to parse duration from {s:?}".to_string(),
+        ));
+    };
 
     result = result
         + Duration::minutes(

@@ -91,7 +91,7 @@ impl StateChange {
         let end_date = end.date_naive();
         let mut current_date = start_date;
         while current_date < end_date {
-            tracing::debug!("computing entries for date {current_date}");
+            tracing::trace!("computing entries for date {current_date}");
             for entry in entries {
                 let (when, state) = match entry.when {
                     When::Daily => (dt(current_date, entry.time), entry.state),

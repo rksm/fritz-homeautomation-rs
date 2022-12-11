@@ -9,6 +9,9 @@ pub enum Error {
 
     #[error("unable to parse duration: {0}")]
     DurationParseError(String),
+
+    #[error("fritz error: {0}")]
+    FritzApiError(#[from] fritzapi::FritzError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

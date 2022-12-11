@@ -117,11 +117,11 @@ impl TimerState {
         self.times.sort();
         debug!("updated times, waiting for {}", self.times.len());
 
-        if enabled!(tracing::Level::DEBUG) {
-            for t in &self.times {
-                trace!("  {t} ({})", crate::duration::duration_pretty(*t - now));
-            }
-        }
+        // if enabled!(tracing::Level::TRACE) {
+        //     for t in &self.times {
+        //         trace!("  {t} ({})", crate::duration::duration_pretty(*t - now));
+        //     }
+        // }
     }
 }
 
