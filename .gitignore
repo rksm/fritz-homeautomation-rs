@@ -5,3 +5,5 @@ fritzapi/target
 /data
 .env
 DEV.org
+rpi-cargo-registry
+/.ipynb_checkpoints/
