@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest::blocking::{get as GET, Client, Response};
 use log::info;
+use reqwest::redirect::Policy;
 
 use crate::error::{FritzError, Result};
 use crate::fritz_xml as xml;
@@ -119,6 +122,26 @@ pub(crate) fn device_infos(sid: &str) -> Result<Vec<xml::Device>> {
 pub(crate) fn fetch_device_stats(ain: &str, sid: &str) -> Result<Vec<xml::DeviceStats>> {
     let xml = request(Commands::GetBasicDeviceStats, sid, Some(ain))?;
     xml::parse_device_stats(xml)
+}
+
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+/// TODO!
+pub fn trigger_high_refresh_rate(sid: &str) -> Result<()> {
+    let mut params = HashMap::new();
+    params.insert("sid", sid);
+    params.insert("c", "smarthome");
+    params.insert("a", "getData");
+    let client = Client::builder().redirect(Policy::none()).build()?
+        .post("http://fritz.box/myfritz/api/data.lua")
+        .form(&params);
+    let response = client.send()?;
+    let status = response.status();
+
+    if status != 200 {
+        return Err(FritzError::TriggerHighRefreshRateError(status));
+    }
+    Ok(())
 }
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
