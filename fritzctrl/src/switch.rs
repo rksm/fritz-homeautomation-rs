@@ -28,7 +28,7 @@ pub fn switch(args: &ArgMatches) -> anyhow::Result<()> {
     let action = if on {
         SwitchAction::On
     } else if off {
-        SwitchAction::On
+        SwitchAction::Off
     } else if toggle {
         SwitchAction::Toggle
     } else {
