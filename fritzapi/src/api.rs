@@ -126,7 +126,36 @@ pub(crate) fn fetch_device_stats(ain: &str, sid: &str) -> Result<Vec<xml::Device
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-/// TODO!
+/// Triggers a higher refresh rate for smart plugs (Fritz!Dect 2xx).
+/// 
+/// *Note: This function uses an unofficial and undocumented API which may stop working at any time.
+/// It has been verified to work with a Fritz!Box 7560 running FRITZ!OS 07.29. Other models
+/// and software versions are likely to work as well.*
+/// 
+/// By default, the consumption data (current watts, voltage, temperature etc.)
+/// is updated every 2 minutes. Using this function, the update interval can be 
+/// reduced to ~10 seconds. The higher refresh rate will last for 1-2 minutes and
+/// will fall back to the default (2 minutes) afterwards. Call this function 
+/// repeatedly (e.g. every 30 seconds) to maintain the higher refresh rate.
+/// 
+/// The `fritz_dect_2xx_reader` example shows how to read data from smart plugs 
+/// using the higher refresh rate.
+/// 
+/// ### Background
+/// 
+/// During testing of the smart plug API, we discovered that the update interval 
+/// decreases from 2 minutes to 10 seconds when looking at the consumption data 
+/// in the browser (e.g. using <http://fritz.box/myfritz/>) or in the app.
+/// 
+/// Analysis of the network traffic between the website and the Fritz!Box revealed
+/// that the client regularly sends a request that activates the higher refresh rate.
+/// The request can be replicated on the terminal using `curl` and a valid session id:
+/// 
+/// ```bash
+/// curl -d 'sid=123456790&c=smarthome&a=getData' http://fritz.box/myfritz/api/data.lua
+/// ```
+/// 
+/// This function performs basically the same request as the `curl` command above.
 pub fn trigger_high_refresh_rate(sid: &str) -> Result<()> {
     let mut params = HashMap::new();
     params.insert("sid", sid);
