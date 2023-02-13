@@ -21,15 +21,15 @@
 //! }
 //! ```
 
-pub mod error;
-mod fritz_xml;
 mod api;
 mod devices;
+pub mod error;
+mod fritz_xml;
 
-pub use error::{Result, FritzError};
 pub use api::{get_sid, trigger_high_refresh_rate};
-pub use fritz_xml::{DeviceStatsKind,DeviceStats};
-pub use devices::{AVMDevice,FritzDect2XX};
+pub use devices::{AVMDevice, FritzDect2XX};
+pub use error::{FritzError, Result};
+pub use fritz_xml::{DeviceStats, DeviceStatsKind};
 
 pub fn list_devices(sid: &str) -> error::Result<Vec<devices::AVMDevice>> {
     devices::AVMDevice::list(sid)

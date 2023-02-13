@@ -1,7 +1,7 @@
 use clap::ArgMatches;
+use log::info;
 use prettytable::{format, Cell, Row, Table};
 use std::collections::HashSet;
-use log::info;
 
 pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
     let user = args.value_of("user").unwrap();
@@ -17,7 +17,7 @@ pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
         .value_of("limit")
         .map(|limit| limit.parse().unwrap_or_default());
 
-    let sid = fritzapi::get_sid(&user, &password)?;
+    let sid = fritzapi::get_sid(user, password)?;
     let devices = fritzapi::list_devices(&sid)?;
 
     if let Some(ain) = ain {
@@ -93,7 +93,7 @@ fn device_detail_table(
     limit: Option<usize>,
 ) -> anyhow::Result<Vec<Table>> {
     device
-        .fetch_device_stats(&sid)?
+        .fetch_device_stats(sid)?
         .into_iter()
         .filter_map(|stat| {
             match kinds {

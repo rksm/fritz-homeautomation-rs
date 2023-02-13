@@ -18,8 +18,8 @@ impl Action {
 
     pub fn device_id(&self) -> &str {
         match self {
-            Self::TurnOn { id, .. } => &id,
-            Self::TurnOff { id, .. } => &id,
+            Self::TurnOn { id, .. } => id,
+            Self::TurnOff { id, .. } => id,
         }
     }
 }

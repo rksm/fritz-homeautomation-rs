@@ -244,7 +244,7 @@ pub struct DeviceStatValues {
     pub grid: usize,
 }
 
-pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, > {
+pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>> {
     let stats: RawDeviceStats = from_reader(xml.as_bytes())?;
 
     let mut result: Vec<DeviceStats> = Vec::new();
@@ -266,7 +266,11 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>, > {
                         values: ea
                             .values
                             .split(',')
-                            .filter_map(|val| val.parse::<f32>().ok().map(|val| (val * multiplier).round()))
+                            .filter_map(|val| {
+                                val.parse::<f32>()
+                                    .ok()
+                                    .map(|val| (val * multiplier).round())
+                            })
                             .collect(),
                     })
                     .collect(),

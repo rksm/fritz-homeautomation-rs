@@ -1,27 +1,26 @@
 //! Example script printing smart power plug data (from Fritz!Dect2XX devices) to the terminal.
-//! 
+//!
 //! It expects login information (username, password) to be passed as arguments. Example:
-//! 
+//!
 //! ```bash
 //! cargo run --example fritz_dect_2xx_reader -- my_username my_password
 //! ```
-//! 
+//!
 //! The script queries the Fritz!Box for new data every second and prints the data if something has changed.
-//! 
+//!
 //! By default, new data will be available every 2 minutes. Using `trigger_high_refresh_rate()`, this time
 //! can be decreased to ~10 seconds. To try that, add "HRR" as the third command line argument:
-//! 
+//!
 //! ```bash
 //! cargo run --example fritz_dect_2xx_reader -- my_username my_password HRR
 //! ```
-//! 
+//!
 
 use fritzapi::{AVMDevice, FritzDect2XX, FritzError};
 use std::{
     env::args,
     time::{Duration, Instant},
 };
-
 
 fn main() -> Result<(), FritzError> {
     let start_time = Instant::now();
@@ -51,7 +50,7 @@ fn main() -> Result<(), FritzError> {
             }
         });
     }
-    
+
     let mut current_devices = vec![];
     loop {
         // list devices
