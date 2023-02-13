@@ -27,7 +27,7 @@ mod api;
 mod devices;
 
 pub use error::{Result, FritzError};
-pub use api::get_sid;
+pub use api::{get_sid, trigger_high_refresh_rate};
 pub use fritz_xml::{DeviceStatsKind,DeviceStats};
 pub use devices::{AVMDevice,FritzDect2XX};
 

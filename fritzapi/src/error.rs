@@ -1,3 +1,4 @@
+use reqwest::StatusCode;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -13,6 +14,9 @@ pub enum FritzError {
 
     #[error("parser error: `{0}")]
     ParserError(String),
+
+    #[error("status code mismatch while triggering high refresh rate. Expected 200, got `{0}`")]
+    TriggerHighRefreshRateError(StatusCode),
 
     #[error("unknown fritz api error")]
     Unknown,

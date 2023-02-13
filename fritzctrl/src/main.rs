@@ -8,7 +8,7 @@
 //! - schedule: Reads and parses lines from stdin that contain date, device id, and state. Runs until all commands are processed.
 //! - daylight: Helper command that prints sunrise / sunset times for a given location and time range.
 //!
-//! Pretty much all commands need the fritz.box user name and password. You can set it in an env vars `FRTIZ_USER` and `FRITZ_PASSWORD` or pass it as arguments to the subcommands (the user / password combo is the same you use for http://fritz.box).
+//! Pretty much all commands need the fritz.box user name and password. You can set it in an env vars `FRTIZ_USER` and `FRITZ_PASSWORD` or pass it as arguments to the subcommands (the user / password combo is the same you use for <http://fritz.box>).
 //!
 //! ## Examples
 //!
