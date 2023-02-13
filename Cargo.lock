@@ -253,7 +253,7 @@ dependencies = [
 
 [[package]]
 name = "fritzapi"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "lazy_static",
  "log",
