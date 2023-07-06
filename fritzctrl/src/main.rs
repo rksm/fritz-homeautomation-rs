@@ -114,7 +114,7 @@ fn daylight(args: &ArgMatches) {
         (Some(from_date), Some(to_date), _) => (from_date, to_date),
         (_, _, Some(date)) => (date, date),
         _ => {
-            let date = chrono::Local::today().naive_local();
+            let date = chrono::Local::now().date_naive();
             (date, date)
         }
     };

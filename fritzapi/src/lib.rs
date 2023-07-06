@@ -9,6 +9,9 @@
 //!
 //! ```no_run
 //! // Get a session id
+//! # fn main() -> fritzapi::Result<()> {
+//! # let user = "";
+//! # let password = "";
 //! let sid = fritzapi::get_sid(&user, &password)?;
 //!
 //! // List devices
@@ -19,6 +22,8 @@
 //! if !dev.is_on() {
 //!     dev.turn_on(&sid)?;
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 mod api;
