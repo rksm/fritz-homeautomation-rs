@@ -17,29 +17,29 @@ use crate::fritz_xml as xml;
 /// 3. Convert that to UTF16le
 /// 4. MD5 that byte array
 /// 5. concat that as hex with challenge again
-fn request_response(password: &str, challenge: &str) -> String {
+fn request_response(password: impl AsRef<str>, challenge: impl AsRef<str>) -> String {
     lazy_static! {
         static ref RE: Regex = Regex::new(r"[^\x00-\x7F]").unwrap();
     }
-    let clean_password = RE.replace_all(password, ".");
-    let hash_input = format!("{}-{}", challenge, clean_password);
+    let clean_password = RE.replace_all(password.as_ref(), ".");
+    let hash_input = format!("{}-{}", challenge.as_ref(), clean_password);
     let bytes: Vec<u8> = hash_input
         .encode_utf16()
         .flat_map(|utf16| utf16.to_le_bytes().to_vec())
         .collect();
     let digest = md5::compute(bytes);
-    format!("{}-{:032x}", challenge, digest)
+    format!("{}-{:032x}", challenge.as_ref(), digest)
 }
 
 const DEFAULT_SID: &str = "0000000000000000";
 
 /// Requests a temporary token (session id = sid) from the fritz box using user
 /// name and password.
-pub fn get_sid(user: &str, password: &str) -> Result<String> {
+pub fn get_sid(user: impl AsRef<str>, password: impl AsRef<str>) -> Result<String> {
     let res: Response = GET("http://fritz.box/login_sid.lua")?
         .error_for_status()
         .map_err(|err| {
-            eprintln!("GET login_sid.lua for user {}", user);
+            eprintln!("GET login_sid.lua for user {}", user.as_ref());
             err
         })?;
 
@@ -51,7 +51,8 @@ pub fn get_sid(user: &str, password: &str) -> Result<String> {
     let response = request_response(password, &info.challenge);
     let url = format!(
         "http://fritz.box/login_sid.lua?username={}&response={}",
-        user, response
+        user.as_ref(),
+        response
     );
     let login: Response = GET(&url)?.error_for_status()?;
     let info = xml::parse_session_info(&login.text()?)?;
@@ -109,7 +110,11 @@ pub(crate) fn request(cmd: Commands, sid: &str, ain: Option<&str>) -> Result<Str
     info!("{}", status_message);
 
     if !status.is_success() {
-        Err(FritzError::ApiRequest(status_message))
+        if status == 403 {
+            Err(FritzError::Forbidden)
+        } else {
+            Err(FritzError::ApiRequest(status_message))
+        }
     } else {
         Ok(response.text()?)
     }
