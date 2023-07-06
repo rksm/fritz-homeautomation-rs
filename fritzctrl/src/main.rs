@@ -266,7 +266,7 @@ fn main() {
         }
         "switch" => {
             if let Err(err) = switch::switch(args.subcommand_matches("switch").unwrap()) {
-                println!("{}", err);
+                println!("Error: {}", err);
                 exit(2);
             }
         }
