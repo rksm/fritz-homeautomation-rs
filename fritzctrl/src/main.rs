@@ -301,9 +301,5 @@ fn main() {
                 exit(3);
             };
         }
-        _ => {
-            app.print_help().unwrap();
-            exit(1);
-        }
     }
 }
