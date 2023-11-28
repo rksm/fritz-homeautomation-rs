@@ -1,6 +1,6 @@
 [package]
 name = "fritzapi"
-version = "0.3.6"
+version = "0.4.0"
 authors = ["Robert Krahn <robert.krahn@gmail.com>"]
 documentation = "https://docs.rs/fritzapi"
 edition = "2021"
