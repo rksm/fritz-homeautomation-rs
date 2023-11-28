@@ -1,20 +1,12 @@
 #![allow(dead_code)]
 
-use crate::error::{FritzError, Result};
-use serde::{Deserialize, Deserializer, Serialize};
+use crate::devices::{Device, DeviceList, DeviceOrGroup};
+use crate::error::Result;
+use crate::stats::{DeviceStatValues, DeviceStats, DeviceStatsKind, RawDeviceStats, RawManyStats};
+use serde::Deserialize;
+use serde_xml_rs::from_reader;
 
 // response of login_sid.lua
-
-fn deserialize_maybe_u32<'de, D>(d: D) -> std::result::Result<u32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(d)?;
-    match &s[..] {
-        "" => Ok(0),
-        _ => Ok(s.parse::<u32>().unwrap()),
-    }
-}
 
 #[derive(Debug, Deserialize)]
 pub struct SessionInfo {
@@ -28,93 +20,10 @@ pub struct SessionInfo {
 
 // response of getdevicelistinfos
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DeviceOrGroup {
-    Device(Device),
-    Group(DeviceGroup),
-}
-
-#[derive(Debug, Deserialize)]
-pub struct DeviceList {
-    #[serde(rename = "$value")]
-    pub list: Vec<DeviceOrGroup>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Device {
-    pub identifier: String,
-    pub id: String,
-    pub functionbitmask: String,
-    pub fwversion: String,
-    pub manufacturer: String,
-    pub productname: String,
-    pub present: bool,
-    pub txbusy: bool,
-    pub name: String,
-    pub battery: Option<i32>,
-    pub batterylow: Option<bool>,
-    pub switch: Option<Switch>,
-    pub simpleonoff: Option<SimpleOnOff>,
-    pub powermeter: Option<PowerMeter>,
-    pub temperature: Option<Temperature>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DeviceGroup {
-    pub synchronized: bool,
-    pub identifier: String,
-    pub id: String,
-    pub functionbitmask: String,
-    pub fwversion: String,
-    pub manufacturer: String,
-    pub present: bool,
-    pub txbusy: bool,
-    pub name: String,
-    pub switch: Option<Switch>,
-    pub simpleonoff: Option<SimpleOnOff>,
-    pub powermeter: Option<PowerMeter>,
-    // groupinfo: ... // TODO
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Switch {
-    pub state: bool,
-    pub lock: bool,
-    pub devicelock: bool,
-    pub mode: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SimpleOnOff {
-    pub state: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PowerMeter {
-    /// Wert in 0,001 V (aktuelle Spannung, wird etwa alle 2 Minuten aktualisiert)
-    #[serde(deserialize_with = "deserialize_maybe_u32")]
-    pub voltage: u32,
-    /// Wert in 0,001 W (aktuelle Leistung, wird etwa alle 2 Minuten aktualisiert)
-    #[serde(deserialize_with = "deserialize_maybe_u32")]
-    pub power: u32,
-    /// Wert in 1.0 Wh (absoluter Verbrauch seit Inbetriebnahme)
-    #[serde(deserialize_with = "deserialize_maybe_u32")]
-    pub energy: u32,
-}
-
-/// celsius: Wert in 0,1 °C, negative und positive Werte möglich
-/// offset: Wert in 0,1 °C, negative und positive Werte möglich
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Temperature {
-    pub celsius: String,
-    pub offset: String,
-}
-
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
-    serde_xml_rs::from_reader(xml.as_bytes()).map_err(|err| {
+    from_reader(xml.as_bytes()).map_err(|err| {
         eprintln!("cannot parse session info");
         err.into()
     })
@@ -122,7 +31,7 @@ pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
 
 /// Parses raw [`Device`]s.
 pub fn parse_device_infos(xml: String) -> Result<Vec<Device>> {
-    serde_xml_rs::from_reader::<&[u8], DeviceList>(xml.as_bytes())
+    from_reader::<&[u8], DeviceList>(xml.as_bytes())
         .map(|list| {
             list.list
                 .into_iter()
@@ -189,112 +98,8 @@ pub fn features(device: &Device) -> DeviceFeatures {
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // stats
 
-#[derive(Debug, Deserialize)]
-pub struct RawDeviceStats {
-    pub temperature: Option<RawManyStats>,
-    pub voltage: Option<RawManyStats>,
-    pub power: Option<RawManyStats>,
-    pub energy: Option<RawManyStats>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RawManyStats {
-    pub stats: Vec<RawStats>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RawStats {
-    pub count: usize,
-    pub grid: usize,
-    #[serde(rename = "$value")]
-    pub values: String,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum Unit {
-    Celsius,
-    Watt,
-    WattHour,
-    Volt,
-}
-
-impl std::fmt::Display for Unit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Unit::Celsius => write!(f, "°C"),
-            Unit::Watt => write!(f, "W"),
-            Unit::WattHour => write!(f, "Wh"),
-            Unit::Volt => write!(f, "V"),
-        }
-    }
-}
-
-/// Category of measurements that the fritz devices may provide.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum DeviceStatsKind {
-    Temperature,
-    Voltage,
-    Power,
-    Energy,
-}
-
-impl std::fmt::Display for DeviceStatsKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({})", self.name(), self.unit())
-    }
-}
-
-impl DeviceStatsKind {
-    pub fn name(&self) -> &'static str {
-        match self {
-            DeviceStatsKind::Temperature => "temperature",
-            DeviceStatsKind::Voltage => "voltage",
-            DeviceStatsKind::Power => "power",
-            DeviceStatsKind::Energy => "energy",
-        }
-    }
-
-    pub fn unit(&self) -> Unit {
-        match self {
-            DeviceStatsKind::Temperature => Unit::Celsius,
-            DeviceStatsKind::Voltage => Unit::Volt,
-            DeviceStatsKind::Power => Unit::Watt,
-            DeviceStatsKind::Energy => Unit::WattHour,
-        }
-    }
-}
-
-impl std::str::FromStr for DeviceStatsKind {
-    type Err = FritzError;
-
-    fn from_str(input: &str) -> Result<Self> {
-        match input.to_lowercase().as_str() {
-            "temp" | "temperature" | "celsius" | "c" => Ok(DeviceStatsKind::Temperature),
-            "power" | "watt" | "w" => Ok(DeviceStatsKind::Power),
-            "energy" | "wh" => Ok(DeviceStatsKind::Energy),
-            "volt" | "v" | "voltage" => Ok(DeviceStatsKind::Voltage),
-            _ => Err(FritzError::ParserError(format!(
-                "Cannot convert {:?} to DeviceStatsKind",
-                input
-            ))),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct DeviceStats {
-    pub kind: DeviceStatsKind,
-    pub values: Vec<DeviceStatValues>,
-}
-
-#[derive(Debug)]
-pub struct DeviceStatValues {
-    pub values: Vec<f32>,
-    pub grid: usize,
-}
-
 pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>> {
-    let stats: RawDeviceStats = serde_xml_rs::from_reader(xml.as_bytes())?;
+    let stats: RawDeviceStats = from_reader(xml.as_bytes())?;
 
     let mut result: Vec<DeviceStats> = Vec::new();
 
@@ -304,11 +109,10 @@ pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>> {
         multiplier: f32,
         result: &mut Vec<DeviceStats>,
     ) {
-        if let Some(raw) = raw {
+        if let Some(stats) = raw.and_then(|raw| raw.stats) {
             result.push(DeviceStats {
                 kind,
-                values: raw
-                    .stats
+                values: stats
                     .into_iter()
                     .map(|ea| DeviceStatValues {
                         grid: ea.grid,
@@ -347,6 +151,7 @@ mod tests {
     #[test]
     fn parse_session_info() {
         let xml = r##"
+<?xml version="1.0" encoding="utf-8"?>
 <SessionInfo>
   <SID>0000000000000000</SID>
   <Challenge>63233c3d</Challenge>

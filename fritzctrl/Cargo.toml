@@ -13,13 +13,13 @@ repository = "https://github.com/rksm/fritz-homeautomation-rs"
 [dependencies]
 anyhow = "1.0"
 chrono = "0.4.19"
-clap = "2.33.3"
+clap = { version = "4", features = ["env"] }
 dotenv = "0.15.0"
-env_logger = "0.8.2"
 lazy_static = "1.4.0"
-log = "0.4.13"
 regex = "1.4.2"
 sunrise = "1.0.0"
 parse_duration = "2.1.0"
 prettytable-rs = "0.10.0"
 fritzapi = { path = "../fritzapi", version = "0.3" }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing = "0.1.40"

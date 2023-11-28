@@ -5,37 +5,39 @@
 //!
 //! ## Example
 //!
-//! ### List devices
-//!
 //! ```no_run
-//! // Get a session id
 //! # fn main() -> fritzapi::Result<()> {
-//! # let user = "";
-//! # let password = "";
-//! let sid = fritzapi::get_sid(&user, &password)?;
-//!
-//! // List devices
-//! let mut devices = fritzapi::list_devices(&sid)?;
-//!
-//! // If the first device is of, turn it on
-//! let dev = devices.first_mut().unwrap();
-//! if !dev.is_on() {
-//!     dev.turn_on(&sid)?;
-//! }
-//! # Ok(())
+//! #     let user = "";
+//! #     let password = "";
+//!     let mut client = fritzapi::FritzClient::new(user, password);
+//!     // List devices
+//!     let mut devices = client.list_devices()?;
+//!     // If the first device is off, turn it on
+//!     let dev = devices.first_mut().unwrap();
+//!     if !dev.is_on() {
+//!         dev.turn_on(&mut client)?;
+//!     }
+//! #     Ok(())
 //! # }
 //! ```
 
-mod api;
-mod devices;
-pub mod error;
-mod fritz_xml;
+#[macro_use]
+extern crate tracing;
 
-pub use api::{get_sid, trigger_high_refresh_rate};
+pub mod devices;
+pub mod error;
+pub mod stats;
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) mod api;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) mod client;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) mod fritz_xml;
+
 pub use devices::{AVMDevice, FritzDect2XX};
 pub use error::{FritzError, Result};
-pub use fritz_xml::{DeviceStats, DeviceStatsKind};
+pub use stats::{DeviceStats, DeviceStatsKind, Unit};
 
-pub fn list_devices(sid: &str) -> error::Result<Vec<devices::AVMDevice>> {
-    devices::AVMDevice::list(sid)
-}
+#[cfg(not(target_family = "wasm"))]
+pub use client::FritzClient;

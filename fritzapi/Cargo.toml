@@ -2,25 +2,23 @@
 name = "fritzapi"
 version = "0.3.6"
 authors = ["Robert Krahn <robert.krahn@gmail.com>"]
+documentation = "https://docs.rs/fritzapi"
 edition = "2021"
+keywords = ["avm", "fritz", "homeautomation", "smarthome"]
 license = "MIT"
+repository = "https://github.com/rksm/fritz-homeautomation-rs"
 description = """
 Library for interfacing with the \"AVM Home Automation\" API
 """
-keywords = ["avm", "fritz", "homeautomation", "smarthome"]
-repository = "https://github.com/rksm/fritz-homeautomation-rs"
-documentation = "https://docs.rs/fritzapi"
 
 [dependencies]
-lazy_static = "1.4.0"
-log = "0.4.13"
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+tracing = "0.1"
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+lazy_static = "1.4"
 md5 = "0.7.0"
 regex = "1.4.2"
-serde = {version = "1.0.120", features = ["derive"]}
-serde-xml-rs = "0.6.0"
-thiserror = "1.0.23"
-
-[dependencies.reqwest]
-version = "0.11.0"
-features = ["blocking"]
-default-features = false
+serde-xml-rs = "0.6"
+reqwest = { version = "0.11", features = ["blocking"], default-features = false }

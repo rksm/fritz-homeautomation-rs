@@ -64,10 +64,7 @@ pub fn print_daylight_times(
         );
 
         let sunrise = Local
-            .from_local_datetime(&NaiveDateTime::from_timestamp_opt(sunrise, 0).expect("sunrise"))
-            .earliest()
-            .expect("sunrise");
-
+            .from_utc_datetime(&chrono::NaiveDateTime::from_timestamp_opt(sunrise, 0).unwrap());
         let sunrise = if let Some(shift) = sunrise_shift {
             sunrise + shift
         } else {
@@ -75,10 +72,8 @@ pub fn print_daylight_times(
         };
         println!("sunrise: {}", sunrise.format("%Y-%m-%d %H:%M:%S"));
 
-        let sunset = Local
-            .from_local_datetime(&NaiveDateTime::from_timestamp_opt(sunset, 0).expect("sunset"))
-            .earliest()
-            .expect("sunset");
+        let sunset =
+            Local.from_utc_datetime(&chrono::NaiveDateTime::from_timestamp_opt(sunset, 0).unwrap());
         let sunset = if let Some(shift) = sunset_shift {
             sunset + shift
         } else {

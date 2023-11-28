@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.0] - 2023-11-28
+### Changed
+- add `fritz_api::FritzClient` instead of exposing functions directly
+- fixed an XML parsing error for some devices
+
 ## [0.3.6] - 2023-07-07
 ### Changed
 - fix deserialization in the presence of device groups

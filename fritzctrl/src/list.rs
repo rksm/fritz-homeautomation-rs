@@ -1,34 +1,33 @@
 use clap::ArgMatches;
-use log::info;
 use prettytable::{format, Cell, Row, Table};
 use std::collections::HashSet;
 
 pub(crate) fn list(args: &ArgMatches) -> anyhow::Result<()> {
-    let user = args.value_of("user").unwrap();
-    let password = args.value_of("password").unwrap();
-    let ain = args.value_of("device");
-    let kinds = args.value_of("kinds").map(|kinds| {
+    let user = args.get_one::<String>("user").unwrap();
+    let password = args.get_one::<String>("password").unwrap();
+    let ain = args.get_one::<String>("device");
+    let kinds = args.get_one::<String>("kinds").map(|kinds| {
         crate::parser::parse_kinds(kinds)
             .unwrap_or_default()
             .into_iter()
             .collect()
     });
     let limit = args
-        .value_of("limit")
+        .get_one::<String>("limit")
         .map(|limit| limit.parse().unwrap_or_default());
 
-    let sid = fritzapi::get_sid(user, password)?;
-    let devices = fritzapi::list_devices(&sid)?;
+    let mut client = fritzapi::FritzClient::new(user, password);
+    let devices = client.list_devices()?;
 
     if let Some(ain) = ain {
-        let device = match devices.into_iter().find(|dev| dev.id() == ain) {
+        let device = match devices.into_iter().find(|dev| dev.id() == *ain) {
             None => {
                 return Err(anyhow::anyhow!("Cannot find device with ain {:?}", ain));
             }
             Some(device) => device,
         };
 
-        let tables = device_detail_table(&sid, &device, &kinds, limit)?
+        let tables = device_detail_table(&mut client, &device, &kinds, limit)?
             .into_iter()
             .map(|ea| ea.to_string())
             .collect::<Vec<_>>()
@@ -87,13 +86,13 @@ fn print_device_table(devices: &[fritzapi::AVMDevice]) {
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 fn device_detail_table(
-    sid: &str,
+    client: &mut fritzapi::FritzClient,
     device: &fritzapi::AVMDevice,
     kinds: &Option<HashSet<fritzapi::DeviceStatsKind>>,
     limit: Option<usize>,
 ) -> anyhow::Result<Vec<Table>> {
-    device
-        .fetch_device_stats(sid)?
+    client
+        .device_stats(device.id())?
         .into_iter()
         .filter_map(|stat| {
             match kinds {
@@ -124,7 +123,7 @@ fn print_stat(table: &mut Table, stat: &fritzapi::DeviceStats, limit: Option<usi
                 Cell::new(&time.format("%Y-%m-%d %H:%M:%S").to_string()),
                 Cell::new_align(&format!("{:.1}", val), format::Alignment::RIGHT),
             ]));
-            time = time - chrono::Duration::seconds(values.grid as i64);
+            time -= chrono::Duration::seconds(values.grid as i64);
             n += 1;
             match limit {
                 Some(limit) if n > limit => break,

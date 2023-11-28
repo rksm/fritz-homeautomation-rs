@@ -33,28 +33,24 @@ fn main() -> Result<(), FritzError> {
         .expect("Expected password to be provided on the command line");
     let hrr = args.next() == Some("HRR".to_string());
 
-    // get an SID
-    let sid = fritzapi::get_sid(&user, &password)?;
-    println!("Got SID: {}", &sid);
+    let mut client = fritzapi::FritzClient::new(user, password);
 
+    // start a thread that triggers the high refresh rate every 30 seconds
     if hrr {
-        // start a thread that triggers the high refresh rate every 30 seconds
-        std::thread::spawn({
-            let sid = sid.clone();
-            move || loop {
-                match fritzapi::trigger_high_refresh_rate(&sid) {
-                    Ok(()) => println!("Successfully triggered high refresh rate."),
-                    Err(e) => println!("Error triggering high refresh rate: {e}"),
-                }
-                std::thread::sleep(Duration::from_secs(30));
+        let mut client = client.clone();
+        std::thread::spawn(move || loop {
+            match client.trigger_high_refresh_rate() {
+                Ok(()) => println!("Successfully triggered high refresh rate."),
+                Err(e) => println!("Error triggering high refresh rate: {e}"),
             }
+            std::thread::sleep(Duration::from_secs(30));
         });
     }
 
     let mut current_devices = vec![];
     loop {
         // list devices
-        let devices = fritzapi::list_devices(&sid)?;
+        let devices = client.list_devices()?;
 
         // filter for Fritz!Dect 2XX devices
         let dect_2xx_devices = devices
