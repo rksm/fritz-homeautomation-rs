@@ -19,16 +19,20 @@ impl AVMDevice {
                     }),
                 temperature: Some(Temperature { celsius, .. }),
                 ..
-            } if productname.starts_with("FRITZ!DECT 2") => AVMDevice::FritzDect2XX(FritzDect2XX {
-                identifier,
-                productname,
-                name,
-                on: state,
-                millivolts: voltage,
-                milliwatts: power,
-                energy_in_watt_h: energy,
-                celsius: celsius.parse::<f32>().unwrap_or_default() * 0.1,
-            }),
+            } if productname.starts_with("FRITZ!DECT 2")
+                || productname.starts_with("FRITZ!Smart Energy 2") =>
+            {
+                AVMDevice::FritzDect2XX(FritzDect2XX {
+                    identifier,
+                    productname,
+                    name,
+                    on: state,
+                    millivolts: voltage,
+                    milliwatts: power,
+                    energy_in_watt_h: energy,
+                    celsius: celsius.parse::<f32>().unwrap_or_default() * 0.1,
+                })
+            }
 
             _ => AVMDevice::Other(device),
         }
