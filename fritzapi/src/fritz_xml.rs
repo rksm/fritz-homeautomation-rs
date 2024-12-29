@@ -4,7 +4,6 @@ use crate::devices::{Device, DeviceList, DeviceOrGroup};
 use crate::error::Result;
 use crate::stats::{DeviceStatValues, DeviceStats, DeviceStatsKind, RawDeviceStats, RawManyStats};
 use serde::Deserialize;
-use serde_xml_rs::from_reader;
 
 // response of login_sid.lua
 
@@ -23,7 +22,7 @@ pub struct SessionInfo {
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
-    from_reader(xml.as_bytes()).map_err(|err| {
+    serde_xml_rs::from_str(xml).map_err(|err| {
         eprintln!("cannot parse session info");
         err.into()
     })
@@ -31,7 +30,7 @@ pub fn parse_session_info(xml: &str) -> Result<SessionInfo> {
 
 /// Parses raw [`Device`]s.
 pub fn parse_device_infos(xml: String) -> Result<Vec<Device>> {
-    from_reader::<&[u8], DeviceList>(xml.as_bytes())
+    serde_xml_rs::from_str::<DeviceList>(xml.as_str())
         .map(|list| {
             list.list
                 .into_iter()
@@ -99,7 +98,7 @@ pub fn features(device: &Device) -> DeviceFeatures {
 // stats
 
 pub fn parse_device_stats(xml: String) -> Result<Vec<DeviceStats>> {
-    let stats: RawDeviceStats = from_reader(xml.as_bytes())?;
+    let stats: RawDeviceStats = serde_xml_rs::from_str(&xml)?;
 
     let mut result: Vec<DeviceStats> = Vec::new();
 
@@ -150,15 +149,13 @@ mod tests {
 
     #[test]
     fn parse_session_info() {
-        let xml = r##"
-<?xml version="1.0" encoding="utf-8"?>
+        let xml = r##"<?xml version="1.0" encoding="utf-8"?>
 <SessionInfo>
   <SID>0000000000000000</SID>
   <Challenge>63233c3d</Challenge>
   <BlockTime>0</BlockTime>
   <Rights></Rights>
-</SessionInfo>
-"##;
+</SessionInfo>"##;
 
         let info = super::parse_session_info(xml).unwrap();
         assert_eq!(info.block_time, 0);

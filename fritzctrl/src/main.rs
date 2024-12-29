@@ -47,8 +47,8 @@
 //! ### Schedule switching a device based on daylight hours
 //!
 //! 1. First figure out what the times you want to turn the device on / off are. E.g.
-//! `$ fritzctrl daylight --from-date 2021-02-01 --to-date 2021-02-03 --shift-from="-30min" --shift-to="30hour"`
-//! generates sunrise / sunset times shifted by -30 minutes (sunrise) and +30 minutes sunset:
+//!    `$ fritzctrl daylight --from-date 2021-02-01 --to-date 2021-02-03 --shift-from="-30min" --shift-to="30hour"`
+//!    generates sunrise / sunset times shifted by -30 minutes (sunrise) and +30 minutes sunset:
 //!
 //! ```text
 //! using device location (_, _)

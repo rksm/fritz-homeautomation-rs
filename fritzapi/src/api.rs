@@ -34,9 +34,11 @@ const DEFAULT_SID: &str = "0000000000000000";
 pub fn get_sid(user: impl AsRef<str>, password: impl AsRef<str>) -> Result<String> {
     let res: Response = GET("http://fritz.box/login_sid.lua")?
         .error_for_status()
-        .map_err(|err| {
-            eprintln!("GET login_sid.lua for user {}", user.as_ref());
-            err
+        .inspect_err(|err| {
+            eprintln!(
+                "error in GET login_sid.lua for user {}: {err}",
+                user.as_ref()
+            );
         })?;
 
     let xml = res.text()?;
