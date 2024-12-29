@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.1] - 2024-12-29
+### Changed
+- compatibility with [FRITZ!DECT 210 / 4.27](https://en.avm.de/service/update-news/?product=fritzdect-210). Thank you @felixwrt!
+
+
 ## [0.4.0] - 2023-11-28
 ### Changed
 - add `fritz_api::FritzClient` instead of exposing functions directly
