@@ -13,7 +13,7 @@ Library for interfacing with the \"AVM Home Automation\" API
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-thiserror = "1"
+thiserror = "2.0.9"
 tracing = "0.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

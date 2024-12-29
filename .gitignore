@@ -8,3 +8,4 @@ fritzapi/target
 DEV.org
 rpi-cargo-registry
 /.ipynb_checkpoints/
+/.direnv/
